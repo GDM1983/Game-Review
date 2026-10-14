@@ -487,6 +487,15 @@
   .an-kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;}
   .an-kv div{background:var(--bone);border-radius:10px;padding:8px 12px;} .an-kv span{display:block;font-size:11px;font-weight:700;color:var(--ink-soft);} .an-kv b{font-size:13px;}
   .an-list{margin:4px 0 0;padding-left:18px;font-size:13px;line-height:1.5;}
+  .jump{position:sticky;top:0;z-index:5;display:flex;gap:6px;flex-wrap:wrap;background:var(--bone);padding:8px 0;margin:-6px 0 8px;}
+  .jump button{font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:100px;border:1.5px solid var(--line);background:var(--paper);color:var(--turf);cursor:pointer;}
+  .jump button:hover{border-color:var(--turf-light);}
+  .ms-head{font-family:var(--serif);font-weight:650;font-size:24px;color:var(--ink);margin:34px 0 12px;padding-top:14px;border-top:1px solid var(--line);}
+  .pl-head{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;min-width:0;}
+  .pl-figs{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .pl-figs i{font-style:normal;font-weight:600;color:var(--ink-soft);margin-right:5px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;}
+  .pl-tabs{margin-top:14px;} .pl-tabs button.off:not(.on){border-style:dashed;}
+  .pl-sec-top{display:flex;justify-content:flex-end;margin-top:12px;}
 </style>
 </head>
 <body>
@@ -521,7 +530,7 @@ const LABEL_DEFS = [
     ['stat.played','Games played'],['stat.wins','Wins'],['stat.losses','Losses'],['stat.draws','Draws']]},
   {group:'Match review page', items:[
     ['dash.matches','Matches'],['dash.pulse','Season pulse'],['dash.wtp','Way to Play'],
-    ['tab.summary','Game summary'],['tab.batting','Batting'],['tab.bowling','Bowling'],['tab.fielding','Fielding'],['tab.wtp','Way to Play'],['tab.export','Export']]},
+    ['tab.summary','Match summary'],['tab.players','Players'],['tab.batting','Batting'],['tab.bowling','Bowling'],['tab.fielding','Fielding'],['tab.wtp','Way to Play'],['tab.export','Export']]},
   {group:'Game summary', items:[
     ['gs.info','Match information'],['gs.round','Round'],['gs.opponent','Opponent'],['gs.venue','Venue'],['gs.date','Date'],['gs.result','Result'],
     ['gs.scorecard','Scorecard link'],['gs.sessions','Session breakdown'],['gs.overs','Overs breakdown'],['gs.standards','Game day standards'],['gs.scores','Innings scores'],['gs.summary','Match summary'],['gs.positives','Key positives'],
@@ -631,7 +640,7 @@ const CATCH_GRADES = [['g1','Grade 1'],['g2','Grade 2'],['g3','Grade 3']];
 function blankFielding(){ return {g1t:'', g1d:'', g2t:'', g2d:'', g3t:'', g3d:'', ro:'', dh:'', bs:'', notes:''}; }
 function newGame(round, format){
   return {id:uid(), round:String(round||''), format:format||'multi', opponent:'', venue:'', date:'', result:'', scorecardUrl:'', sessions:blankSessions(), sessionResults:{}, dec:{},
-    battedFirst:'', blockSets:{od:blankBlockSet('od')}, t20:{bat:blankT20Side(), bowl:blankT20Side()}, standards:blankStandards(), fielding:blankFielding(),
+    battedFirst:'', blockSets:{od:blankBlockSet('od')}, t20:{bat:blankT20Side(), bowl:blankT20Side()}, standards:blankStandards(), fielding:blankFielding(), pfield:{},
     scores:{q1:'',o1:'',q2:'',o2:''}, summary:'', positives:'', learnings:'', focus:'',
     battingSummary:'', batters:[], partnerships:[], batMilestones:[],
     bowlingSummary:'', bowlMetrics:{}, bowlers:[], bowlMilestones:[],
@@ -699,6 +708,7 @@ function normGame(g){
   ['od'].forEach(f=>{ const cur = g.blockSets[f]||{}; g.blockSets[f] = {}; ['bat','bowl'].forEach(sd=>{ const a = cur[sd]||[]; g.blockSets[f][sd] = FORMATS[f].blocks.map((_,i)=>Object.assign(blankBlock(), a[i]||{})); }); });
   g.standards = Object.assign(blankStandards(), g.standards||{});
   g.fielding = Object.assign(blankFielding(), g.fielding||{});
+  g.pfield = g.pfield || {};
   const bs = blankSessions(); g.sessions = g.sessions||{};
   Object.keys(bs).forEach(k=>{ const cur = Array.isArray(g.sessions[k]) ? g.sessions[k] : []; g.sessions[k] = [0,1].map(i=>Object.assign(blankSlot(), cur[i]||{})); });
   g.wtp = g.wtp || {};
@@ -1648,7 +1658,7 @@ function addItem(list){
   else if(list==='batMilestones') item = newMilestone(s.batMilestoneTypes[0]);
   else item = newMilestone(s.bowlMilestoneTypes[0]);
   g[list].push(item);
-  if(list==='batters'||list==='bowlers') openPlayers.add(item.id);
+  if(list==='batters'||list==='bowlers'){ openPlayers.add(item.id); view.pTab = view.pTab||{}; view.pTab[item.id] = list==='batters'?'bat':'bowl'; }
   touchGame(g); render();
   if(list==='batters'||list==='bowlers'){
     setTimeout(()=>{ const el=document.querySelector(`[data-name="${item.id}"]`); if(el){ el.focus(); el.scrollIntoView({block:'center',behavior:'smooth'}); } }, 30);
@@ -1749,6 +1759,8 @@ function draftPlayerSummary(disc, key){
 /* ============================= LIVE REGIONS ============================= */
 const LIVE = {
   matchHero: ()=>matchHeroInner(G()),
+  plName: id=>{ const x = groupById(id); if(!x) return null; const n = groupName(x); return n ? `<span class="pc-name">${esc(n)}</span>` : '<span class="pc-name placeholder">New player</span>'; },
+  plFigs: id=>{ const x = groupById(id); return x ? plFigsHtml(x) : null; },
   pName: arg=>{ const [list,id]=arg.split(':'); const p=G()[list].find(x=>x.id===id); return playerNameHtml(p, list); },
   batFig: id=>{ const b=G().batters.find(x=>x.id===id); if(!b) return ''; return esc(batFig(b)); },
   bowlFig: id=>{ const b=G().bowlers.find(x=>x.id===id); if(!b) return ''; return esc(bowlFig(b)); },
@@ -1893,14 +1905,12 @@ function md_matchHeroInner(g){
 }
 function renderMatch(){
   const g = G();
-  const tabs = [['summary',L('tab.summary')],['batting',L('tab.batting'),g.batters.length],['bowling',L('tab.bowling'),g.bowlers.length],['fielding',L('tab.fielding')],['wtp',L('tab.wtp')],['export',L('tab.export')]];
+  const tabs = [['summary',L('tab.summary')],['players',L('tab.players'),playerGroups(g).length],['wtp',L('tab.wtp')],['export',L('tab.export')]];
   let body = '';
-  if(view.tab==='batting') body = tabBatting(g);
-  else if(view.tab==='bowling') body = tabBowling(g);
-  else if(view.tab==='fielding') body = tabFielding(g);
+  if(view.tab==='players') body = tabPlayers(g);
   else if(view.tab==='wtp') body = tabWtp(g);
   else if(view.tab==='export') body = tabExport(g);
-  else body = tabSummary(g);
+  else body = tabMatchSummary(g);
   return `
   <header class="hero">
     ${heroBar()}
@@ -2001,8 +2011,10 @@ function md_playerCard(p, list){
         </div>${playerKpiHtml(p,'bowlers',n)}</div>`).join('');
   return playerShell(p, list, open, `<div class="pc-fig" data-live="${bat?'batFig':'bowlFig'}" data-arg="${p.id}">${LIVE[bat?'batFig':'bowlFig'](p.id)}</div><div class="inn-grid">${fields}</div>`);
 }
+let SHELL_INNER = false;
 function playerShell(p, list, open, figHtml){
   const bat = list==='batters';
+  if(SHELL_INNER) return `<div class="pl-sec-top"><button class="tool-btn danger" onclick="removeItem('${list}','${p.id}')">Remove ${bat?'batting':'bowling'}</button></div>${playerShellBody(p, list, figHtml)}`;
   return `
   <div class="player-card ${open?'open':''}" id="pc-${p.id}">
     <button class="pc-toggle" aria-expanded="${open}" onclick="togglePlayer('${p.id}')">
@@ -2014,7 +2026,13 @@ function playerShell(p, list, open, figHtml){
           <input type="text" data-name="${p.id}" list="dl-players" value="${esc(p.name)}" oninput="setItem('${list}','${p.id}','name',this.value)"></div>
         <button class="tool-btn danger" onclick="removeItem('${list}','${p.id}')">Remove</button>
       </div>
-      ${figHtml}
+      ${playerShellBody(p, list, figHtml)}
+    </div>
+  </div>`;
+}
+function playerShellBody(p, list, figHtml){
+  const bat = list==='batters';
+  return `      ${figHtml}
       <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;">
         <label class="field-label">${LE((bat?'bat':'bowl')+'.review')}</label>
         ${bat && !/dismissal/i.test(p.review||'') ? `<button class="tool-btn" style="margin-bottom:6px;" onclick="addDismissalTemplate('${p.id}')">${isLtd(G())?'Add dismissal line':'Add dismissals lines'}</button>` : ''}
@@ -2025,9 +2043,133 @@ function playerShell(p, list, open, figHtml){
         ${(p.files||[]).map(f=>`<div class="att-row"><a class="att-link" href="${esc(f.url)}" target="_blank" rel="noopener">${fileIcon()}${esc(f.label)}</a><button class="kpi-x" onclick="removePlayerFile('${list}','${p.id}','${f.id}')" aria-label="Remove ${esc(f.label)}">×</button></div>`).join('')}
         <div class="att-add"><input type="url" id="fu-${p.id}" placeholder="Link" onkeydown="if(event.key==='Enter')addPlayerFile('${list}','${p.id}')"><button class="tool-btn" onclick="addPlayerFile('${list}','${p.id}')">Attach</button><button class="tool-btn" onclick="openCombine('${list}','${p.id}')">Combine PDFs</button>${hasBallData(G(), list==='batters'?'bat':'bowl', p.name)?`<button class="tool-btn" onclick="openPlayerDoc('${list}','${p.id}')">${list==='batters'?'Batting':'Bowling'} review document</button>`:''}</div>
       </div>
-      <div class="pc-season" data-live="${bat?'batSeason':'bowlSeason'}" data-arg="${p.id}">${LIVE[bat?'batSeason':'bowlSeason'](p.id)}</div>
+      <div class="pc-season" data-live="${bat?'batSeason':'bowlSeason'}" data-arg="${p.id}">${LIVE[bat?'batSeason':'bowlSeason'](p.id)}</div>`;
+}
+
+/* ---- Tab 1: Match summary: the match, then team batting, bowling and fielding on one page ---- */
+function tabMatchSummary(g){
+  const secs = [['ms-match','Match'],['ms-bat',L('tab.batting')],['ms-bowl',L('tab.bowling')],['ms-field',L('tab.fielding')]];
+  return `<nav class="jump">${secs.map(([id,l])=>`<button onclick="jumpTo('${id}')">${esc(l)}</button>`).join('')}</nav>
+  <section id="ms-match">${tabSummary(g)}</section>
+  <h2 class="ms-head" id="ms-bat">${LE('tab.batting')}</h2>${tabBatting(g)}
+  <h2 class="ms-head" id="ms-bowl">${LE('tab.bowling')}</h2>${tabBowling(g)}
+  <h2 class="ms-head" id="ms-field">${LE('tab.fielding')}</h2>${tabFielding(g)}`;
+}
+function jumpTo(id){ const el = document.getElementById(id); if(el) window.scrollTo({top: el.getBoundingClientRect().top + window.scrollY - 70, behavior:'smooth'}); }
+
+/* ---- Tab 2: Players: one row per player, opening to their batting, bowling and fielding ---- */
+function playerGroups(g){
+  const out = [];
+  const put = (p, side)=>{ const k = pkey(p.name||''); let x = k ? out.find(y=>y.key===k && !y[side]) : null;
+    if(!x){ x = {key:k, id:p.id, bat:null, bowl:null}; out.push(x); } x[side] = p; };
+  g.batters.forEach(p=>put(p,'bat')); g.bowlers.forEach(p=>put(p,'bowl'));
+  return out;
+}
+function groupById(id){ return playerGroups(G()).find(x=>x.id===id || (x.bat&&x.bat.id===id) || (x.bowl&&x.bowl.id===id)); }
+function groupName(x){ return ((x.bat||x.bowl||{}).name||'').trim(); }
+function pfOf(g, name){ return (g.pfield||{})[pkey(name)] || {}; }
+function pfFig(g, name){ const f = pfOf(g, name); return [has(f.c)?`${num(f.c)} ct`:'', has(f.d)&&num(f.d)?`${num(f.d)} dropped`:'', has(f.ro)&&num(f.ro)?plural(num(f.ro),'run out'):''].filter(Boolean).join(', '); }
+function plFigsHtml(x){
+  const g = G(), name = groupName(x), parts = [];
+  if(x.bat){ const f = batFig(x.bat); if(f) parts.push(`<span><i>Bat</i>${esc(f)}</span>`); }
+  if(x.bowl){ const f = bowlFig(x.bowl); if(f && f!=='–') parts.push(`<span><i>Bowl</i>${esc(f)}</span>`); }
+  const ff = name ? pfFig(g, name) : ''; if(ff) parts.push(`<span><i>Field</i>${esc(ff)}</span>`);
+  return parts.join('');
+}
+function plSide(x){ const t = (view.pTab||{})[x.id]; return t || (x.bat ? 'bat' : 'bowl'); }
+function setPlSide(id, t){ view.pTab = view.pTab || {}; view.pTab[id] = t; render(); }
+function tabPlayers(g){
+  const groups = playerGroups(g), anyOpen = groups.some(x=>openPlayers.has(x.id));
+  return `<div class="group-title"><span>${LE('tab.players')}</span>
+      ${groups.length>1 ? `<button class="tool-btn" onclick="setAllGroups(${!anyOpen})">${anyOpen?'Collapse all':'Expand all'}</button>` : ''}</div>
+    ${groups.map(x=>playerGroupCard(g, x)).join('')}
+    <button class="add-btn" onclick="addItem('batters')">+ Add player</button>`;
+}
+function playerGroupCard(g, x){
+  const open = openPlayers.has(x.id), side = plSide(x), name = groupName(x);
+  const tabs = [['bat','Batting', x.bat], ['bowl','Bowling', x.bowl], ['field','Fielding', true]];
+  let sec = '';
+  if(side==='field') sec = playerFieldingHtml(g, x);
+  else { const list = side==='bat' ? 'batters' : 'bowlers', p = x[side];
+    if(p){ SHELL_INNER = true; try{ sec = playerCard(p, list); } finally { SHELL_INNER = false; } }
+    else sec = `<button class="add-btn" onclick="addRole('${x.id}','${list}')">+ Add ${side==='bat'?'batting':'bowling'}</button>`; }
+  return `<div class="player-card pl ${open?'open':''}" id="pc-${x.id}">
+    <button class="pc-toggle" aria-expanded="${open}" onclick="togglePlayer('${x.id}')">
+      <span class="pl-head"><span data-live="plName" data-arg="${x.id}">${name?`<span class="pc-name">${esc(name)}</span>`:'<span class="pc-name placeholder">New player</span>'}</span>
+      <span class="pl-figs" data-live="plFigs" data-arg="${x.id}">${plFigsHtml(x)}</span></span>${chevron()}
+    </button>
+    <div class="pc-body">
+      <div class="pc-body-top">
+        <div><label class="field-label" style="margin-top:0">Player name</label>
+          <input type="text" data-name="${x.id}" list="dl-players" value="${esc(name)}" oninput="setPlayerName('${x.id}',this.value)"></div>
+        <button class="tool-btn danger" onclick="removeGroup('${x.id}')">Remove player</button>
+      </div>
+      <div class="seg pl-tabs">${tabs.map(([k,l,on])=>`<button class="${side===k?'on':''}${on?'':' off'}" onclick="setPlSide('${x.id}','${k}')">${l}</button>`).join('')}</div>
+      <div class="pl-sec">${sec}</div>
     </div>
   </div>`;
+}
+function setAllGroups(open){ playerGroups(G()).forEach(x=>{ if(open) openPlayers.add(x.id); else openPlayers.delete(x.id); }); render(); }
+function setPlayerName(id, v){
+  const g = G(), x = groupById(id); if(!x) return;
+  const old = pkey(groupName(x));
+  [x.bat, x.bowl].forEach(p=>{ if(p) p.name = v; });
+  if(old && g.pfield[old] && pkey(v)!==old){ g.pfield[pkey(v)] = g.pfield[old]; delete g.pfield[old]; }
+  touchGame(g); live();
+}
+function addRole(id, list){
+  const g = G(), x = groupById(id); if(!x) return;
+  const item = list==='batters' ? Object.assign(newBatter(), {review: batTemplate(g)}) : newBowler();
+  item.name = groupName(x); g[list].push(item);
+  // a batting entry that was never used goes, so a bowler added by hand doesn't show as a batter with no innings
+  const b = x.bat;
+  if(list==='bowlers' && b && !['i1r','i1b','i2r','i2b'].some(k=>has(b[k])) && !cleanReview(b.review) && !(b.files||[]).length){
+    g.batters = g.batters.filter(p=>p!==b); openPlayers.delete(x.id); openPlayers.add(item.id); view.pTab = view.pTab||{}; view.pTab[item.id] = 'bowl'; }
+  touchGame(g); render();
+}
+function removeGroup(id){
+  const g = G(), x = groupById(id); if(!x) return; const name = groupName(x);
+  const anything = [x.bat, x.bowl].some(p=>p && cleanReview(p.review));
+  if((name || anything) && !confirm(`Remove ${name||'this player'} from this match?`)) return;
+  g.batters = g.batters.filter(p=>p!==x.bat); g.bowlers = g.bowlers.filter(p=>p!==x.bowl);
+  if(name) delete g.pfield[pkey(name)];
+  openPlayers.delete(id); touchGame(g); render();
+}
+function setPF(id, k, v){
+  const g = G(), x = groupById(id); if(!x) return; const key = pkey(groupName(x)); if(!key) return;
+  g.pfield[key] = Object.assign({c:'', d:'', ro:'', notes:''}, g.pfield[key]||{}); g.pfield[key][k] = v;
+  touchGame(g); live();
+}
+/* the analyst's fielding lines for one player */
+function anPlayerFielding(g, name){
+  const an = g.analyst; if(!an || !name) return [];
+  const out = [];
+  (an.field.lapses||[]).forEach(t=>{ const m = t.match(/dropped catch by (.+?) --/); if(m && nmSame(anName(m[1]), name)) out.push(`Dropped: ${anText(g, t)}`); });
+  const kp = (an.field.items||{}).Keeper; if(kp){ const m = kp.match(/^([^,]+, [^,]+)/); if(m && nmSame(anName(m[1]), name)) out.push(`Keeper: ${anText(g, kp)}`); }
+  return out;
+}
+function anFillFielding(g){
+  const an = g.analyst; if(!an) return;
+  [...g.batters, ...g.bowlers].forEach(p=>{ const name = (p.name||'').trim(), key = pkey(name); if(!key) return;
+    const f = g.pfield[key] = Object.assign({c:'', d:'', ro:'', notes:''}, g.pfield[key]||{});
+    const c = an.field.catches.find(([n])=>nmSame(n, name)); if(c && !has(f.c)) f.c = String(c[1]);
+    const d = (an.field.lapses||[]).filter(t=>{ const m = t.match(/dropped catch by (.+?) --/); return m && nmSame(anName(m[1]), name); }).length;
+    if(d && !has(f.d)) f.d = String(d); });
+}
+function playerFieldingHtml(g, x){
+  const name = groupName(x); if(!name) return `<div class="hint">Add the player's name first.</div>`;
+  const f = pfOf(g, name), an = anPlayerFielding(g, name);
+  const inp = (k, l)=>`<div><div class="mini-label">${l}</div><input type="number" min="0" inputmode="numeric" value="${esc(f[k]||'')}" oninput="setPF('${x.id}','${k}',this.value)"></div>`;
+  return `<div class="fld-other" style="margin-top:12px;">${inp('c','Catches')}${inp('d','Dropped')}${inp('ro','Run outs')}</div>
+    ${an.length ? `<div class="att-box"><div class="mini-label">From the analyst</div><ul class="an-list">${an.map(t=>`<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
+    <label class="field-label">Fielding notes</label>
+    <textarea oninput="setPF('${x.id}','notes',this.value)">${esc(f.notes||'')}</textarea>`;
+}
+/* opened from the season review: straight to the player */
+function openMatchPlayer(gid, itemId, side){
+  openMatch(gid, 'players'); const x = groupById(itemId); if(!x) return;
+  openPlayers.add(x.id); view.pTab = {[x.id]: side}; render();
+  setTimeout(()=>{ const el = document.getElementById('pc-'+x.id); if(el) el.scrollIntoView({block:'start', behavior:'smooth'}); }, 30);
 }
 /* ---- Shared: milestones ---- */
 function milestonePanel(g, kind){
@@ -2890,7 +3032,7 @@ async function importAnalyst(file){
     const A = await readAnalystPdf(pdf, lib.OPS, (i,n)=>{ if(i%10===0) toast(`Reading page ${i} of ${n}…`); });
     if(!A.bat.length && !A.bowl.length) throw new Error('none');
     g.analyst = anCompact(A);
-    const done = anApply(g);
+    const done = anApply(g); anFillFielding(g);
     touchGame(g); touchSeason(S()); render();
     toast(`Analyst report added: ${done.join(', ')}`);
     publishReviews(true);
@@ -3202,7 +3344,6 @@ function tabBatting(g){
     <textarea class="xl" oninput="setG('battingSummary',this.value)">${esc(g.battingSummary)}</textarea>
     ${teamKpiPanel('bat')}
   </div>
-  ${playerList(g, 'batters')}
   <div class="panel" style="margin-top:22px;">
     <div class="panel-head"><div class="panel-title">${LE('bat.partnerships')}</div></div>
     ${isLtd(g) ? partFlat(g) : ['1','2'].map(inn=>partGroup(g, inn)).join('')}
@@ -3285,7 +3426,6 @@ function tabBowling(g){
     </div>
     <div class="inline-add"><input type="text" id="new-metric" placeholder="New KPI" onkeydown="if(event.key==='Enter')addMetric()"><button onclick="addMetric()">Add KPI</button></div>
   </div>
-  ${playerList(g, 'bowlers')}
   <div style="margin-top:22px;">${milestonePanel(g, 'bowl')}</div>`;
 }
 
@@ -3358,7 +3498,8 @@ function anFieldingBlocks(g){
 }
 function fieldingBlocks(g, withHead){
   const t = fieldingTotals([g]), notes = (g.fielding.notes||'').trim(), anb = anFieldingBlocks(g);
-  if(!fieldingHasData(t) && !notes && !anb.length) return [];
+  const pfAny = Object.values(g.pfield||{}).some(f=>has(f.c)||has(f.d)||has(f.ro)||(f.notes||'').trim());
+  if(!fieldingHasData(t) && !notes && !anb.length && !pfAny) return [];
   const b = withHead ? [{t:'h', text:L('tab.fielding')}] : [];
   b.push(...anb);
   if(fieldingHasData(t)){
@@ -3366,6 +3507,9 @@ function fieldingBlocks(g, withHead){
     b.push({t:'kv', rows:[['Run outs', t.ro], ['Direct hits', t.dh], ['Boundary saves', t.bs]]});
   }
   if(notes) b.push({t:'p', text:notes});
+  const pf = Object.entries(g.pfield||{}).map(([k,f])=>{ const p = [...g.batters, ...g.bowlers].find(x=>pkey(x.name)===k); return p ? {name:p.name, f} : null; }).filter(x=>x && (has(x.f.c)||has(x.f.d)||has(x.f.ro)||(x.f.notes||'').trim()));
+  if(pf.some(x=>has(x.f.c)||has(x.f.d)||has(x.f.ro))) b.push({t:'table', head:['Player','Catches','Dropped','Run outs'], rows:pf.map(x=>[x.name, num(x.f.c), num(x.f.d), num(x.f.ro)])});
+  pf.filter(x=>(x.f.notes||'').trim()).forEach(x=>b.push({t:'small', text:`${x.name}: ${x.f.notes.trim()}`}));
   return b;
 }
 
@@ -3578,7 +3722,7 @@ function playerDetail(disc, key){
     ${p.entries.map(e=>`<div class="review-item">
       <div class="ri-head"><div class="ri-title">${esc(gameTitle(e.game))}</div>
         <div style="display:flex;gap:14px;align-items:baseline;"><span class="ri-fig">${esc(isLtd(e.game)?`${FORMATS[fmtOf(e.game)].short}: ${disc==='bat'?batFig(e.item):bowlFig(e.item)}`:(disc==='bat'?batFig(e.item):bowlFig(e.item)))}</span>
-        <button class="link-btn" onclick="openMatch('${e.game.id}','${disc==='bat'?'batting':'bowling'}')">Edit</button></div></div>
+        <button class="link-btn" onclick="openMatchPlayer('${e.game.id}','${e.item.id}','${disc}')">Edit</button></div></div>
       ${(e.item.files||[]).length?`<div class="att-inline">${filesHtml(e.item.files)}</div>`:''}
       <div class="ri-text ${cleanReview(e.item.review)?'':'empty'}">${esc(cleanReview(e.item.review)||'No review written.')}</div>
     </div>`).join('')}
