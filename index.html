@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Queensland Bulls 2nd XI Season Review</title>
+<title>Queensland Cricket Match Review</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,450;9..144,560;9..144,650&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -188,7 +188,7 @@
   .att-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;}
   .att-link{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;color:var(--turf);text-decoration:none;}
   .att-link:hover{text-decoration:underline;}
-  .att-add{display:grid;grid-template-columns:1fr auto;gap:6px;margin-top:6px;}
+  .att-add{display:grid;grid-template-columns:1fr auto auto;gap:6px;margin-top:6px;}
   .att-add input{padding:7px 10px;font-size:13px;background:var(--paper);}
   @media (max-width:600px){.att-add{grid-template-columns:1fr;}}
   .att-inline{display:flex;flex-wrap:wrap;gap:12px;margin-top:4px;}
@@ -199,8 +199,10 @@
   .inn-block{background:var(--bone);border-radius:12px;padding:11px 12px 12px;}
   .inn-label{font-size:12px;font-weight:700;color:var(--turf);margin-bottom:8px;}
   .inn-fields{display:grid;gap:8px;align-items:end;}
-  .inn-fields.bat{grid-template-columns:1fr 1fr auto;}
-  .inn-fields.bowl{grid-template-columns:repeat(4,1fr);}
+  .inn-fields.bat{grid-template-columns:repeat(5,minmax(0,1fr)) auto;}
+  .inn-fields.bowl{grid-template-columns:repeat(7,minmax(0,1fr));}
+  .inn-fields input{min-width:0;padding-left:6px;padding-right:6px;}
+  @media (max-width:640px){.inn-fields.bat,.inn-fields.bowl{grid-template-columns:repeat(3,1fr);}}
   .mini-label{font-size:11px;color:var(--ink-soft);margin-bottom:4px;font-weight:600;}
   .inn-fields input{background:var(--paper);padding:8px 10px;font-variant-numeric:tabular-nums;}
   .no-toggle{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--ink-soft);padding:8px 2px;cursor:pointer;white-space:nowrap;}
@@ -411,6 +413,66 @@
   .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:var(--clay);color:var(--bone);font-size:13px;font-weight:500;padding:11px 18px;border-radius:11px;opacity:0;transition:all .25s;pointer-events:none;z-index:60;box-shadow:var(--shadow);}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
   .loading{padding:80px 20px;text-align:center;color:var(--ink-soft);font-size:14px;}
+
+  .od-grid{margin-top:12px;}
+  .inn-fields.od-bat{grid-template-columns:repeat(5,1fr) auto;}
+  .inn-fields.od-bowl{grid-template-columns:repeat(7,1fr);}
+  @media (max-width:640px){.inn-fields.od-bat,.inn-fields.od-bowl{grid-template-columns:repeat(3,1fr);}}
+  .ms-row.ltd{grid-template-columns:1fr 150px 140px 34px;}
+  .ob-table{margin-top:14px;}
+  .ob-table + .ob-table{margin-top:24px;}
+  .ob-title{font-family:var(--serif);font-weight:650;font-size:15px;color:var(--turf);margin-bottom:8px;}
+  .ob-row{display:grid;grid-template-columns:112px repeat(6,minmax(54px,1fr)) minmax(180px,2.4fr);gap:6px;align-items:center;margin-bottom:6px;min-width:700px;font-variant-numeric:tabular-nums;}
+  .ob-row input{padding:7px 6px;text-align:center;font-size:13px;min-width:0;}
+  .ob-head{font-size:11px;font-weight:700;color:var(--ink-soft);margin-bottom:4px;grid-template-columns:112px repeat(6,minmax(54px,1fr)) minmax(56px,.8fr) minmax(56px,.8fr) minmax(56px,.8fr);}
+  .ob-head > div{text-align:center;} .ob-head > div:first-child{text-align:left;padding-left:24px;}
+  .ob-lbl{font-size:12.5px;font-weight:700;color:var(--ink-soft);display:flex;align-items:center;gap:8px;}
+  .ob-calc{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;text-align:center;font-weight:700;color:var(--turf);font-size:13px;}
+  .ob-total{grid-template-columns:112px repeat(6,minmax(54px,1fr)) minmax(56px,.8fr) minmax(56px,.8fr) minmax(56px,.8fr);background:rgba(110,27,60,0.06);border:1px solid rgba(110,27,60,0.15);border-radius:10px;padding:8px 0;text-align:center;font-weight:700;color:var(--ink);}
+  .ob-total .ob-lbl{text-align:left;padding-left:10px;color:var(--turf);}
+  .ob-pct{color:var(--turf);}
+  .ob-row .sr-dot{position:static;width:16px;height:16px;flex-shrink:0;box-shadow:none;}
+  .ob-row[data-res="won"]{background:rgba(60,139,105,0.09);border-radius:9px;}
+  .ob-row[data-res="even"]{background:rgba(200,147,57,0.11);border-radius:9px;}
+  .ob-row[data-res="lost"]{background:rgba(181,69,61,0.08);border-radius:9px;}
+  .ob-row[data-res="won"] .sr-dot{background:var(--green);border-color:var(--green);}
+  .ob-row[data-res="even"] .sr-dot{background:var(--amber);border-color:var(--amber);}
+  .ob-row[data-res="lost"] .sr-dot{background:var(--red);border-color:var(--red);}
+  .is-grid.two{grid-template-columns:1fr 1fr;}
+  .std-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;}
+  .std-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bone);border-radius:11px;padding:8px 10px 8px 14px;}
+  .std-label{font-size:13.5px;font-weight:600;}
+  .std-rate{display:flex;gap:4px;}
+  .std-rate button{width:32px;height:32px;border-radius:8px;border:1.5px solid var(--line);background:var(--paper);font-family:var(--serif);font-weight:650;font-size:14px;color:var(--ink);cursor:pointer;}
+  .std-rate button:hover{border-color:var(--turf-light);}
+  .std-rate button.sel{background:var(--turf);border-color:var(--turf);color:var(--bone);}
+  .kpi-cells.ltd{grid-template-columns:86px 54px;}
+  .fmt-chip{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--turf);background:rgba(110,27,60,0.08);border-radius:100px;padding:3px 9px;margin-top:6px;}
+  .fmt-pick{display:grid;gap:10px;}
+  .fmt-pick button{display:flex;justify-content:space-between;align-items:center;text-align:left;padding:14px 16px;border-radius:12px;border:1.5px solid var(--line);background:var(--bone);cursor:pointer;font-family:var(--serif);font-size:17px;font-weight:650;color:var(--ink);}
+  .fmt-pick button:hover{border-color:var(--turf);}
+  .fmt-pick button small{font-family:var(--sans,Inter,sans-serif);font-size:12px;font-weight:600;color:var(--ink-soft);}
+  .fld-grid{display:grid;grid-template-columns:110px repeat(3,minmax(70px,110px));gap:8px;align-items:center;}
+  .fld-grid .fh{font-size:11px;font-weight:700;color:var(--ink-soft);text-align:center;}
+  .fld-grid .fl{font-size:13px;font-weight:700;color:var(--ink-soft);}
+  .fld-grid input{text-align:center;}
+  .fld-grid .fc{text-align:center;font-weight:700;color:var(--turf);font-variant-numeric:tabular-nums;}
+  .fld-grid .ft{border-top:1px solid var(--line);padding-top:8px;}
+  .fld-other{display:grid;grid-template-columns:repeat(3,minmax(90px,150px));gap:12px;}
+  .t20-ctl{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;margin:0 0 12px;}
+  .t20-ctl label{display:flex;flex-direction:column;gap:4px;}
+  .t20-ctl select{min-width:150px;}
+  .t20-cuts{display:flex;gap:6px;} .t20-cuts input{width:64px;text-align:center;}
+  .ob-row.surge .ob-lbl{color:var(--turf);}
+  .snap-grid.two{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .kt-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:10px;}
+  .kt{background:var(--paper);border:1px solid var(--line);border-radius:9px;padding:6px 8px;text-align:center;}
+  .kt-v{font-family:var(--serif);font-weight:650;font-size:16px;color:var(--turf);font-variant-numeric:tabular-nums;line-height:1.2;}
+  .kt-l{font-size:10.5px;font-weight:600;color:var(--ink-soft);}
+  .kt-row.team .kt{background:var(--bone);border:none;padding:10px 8px;}
+  .kt-row.team .kt-v{font-size:20px;}
+  .kt-cap{font-size:11px;font-weight:700;color:var(--ink-soft);margin-top:12px;text-transform:uppercase;letter-spacing:.05em;}
+  @media (max-width:640px){.kt-row{grid-template-columns:repeat(2,minmax(0,1fr));}}
 </style>
 </head>
 <body>
@@ -431,7 +493,7 @@
    Leave JSONBIN_INDEX_BIN_ID blank and the app creates the bins on first save,
    then shows the index bin id in Settings. Paste it here to open the same data
    on any device. Everything is also saved in this browser as a fallback. */
-const JSONBIN_API_KEY      = '';   // Left blank on purpose: enter your key in Settings on each device so it isn't public on GitHub.
+const JSONBIN_API_KEY      = '';
 const JSONBIN_INDEX_BIN_ID = '';
 const JB = 'https://api.jsonbin.io/v3';
 const LS_DATA = 'qb2xi-review:data:v1';
@@ -440,15 +502,15 @@ const LS_CFG  = 'qb2xi-review:cfg:v1';
 /* ============================= LABELS (editable in Settings) ============================= */
 const LABEL_DEFS = [
   {group:'Header', items:[
-    ['app.org','Queensland Cricket'],['app.platform','2nd XI Season Review Platform'],['app.team','Queensland Bulls 2nd XI'],
+    ['app.org','Queensland Cricket'],['app.platform','Season Review Platform'],['prog.2xi','Queensland Bulls 2nd XI'],['prog.u17','Queensland U17'],['prog.u19','Queensland U19'],
     ['nav.matches','Match review'],['nav.season','Season review'],
     ['stat.played','Games played'],['stat.wins','Wins'],['stat.losses','Losses'],['stat.draws','Draws']]},
   {group:'Match review page', items:[
     ['dash.matches','Matches'],['dash.pulse','Season pulse'],['dash.wtp','Way to Play'],
-    ['tab.summary','Game summary'],['tab.batting','Batting'],['tab.bowling','Bowling'],['tab.wtp','Way to Play'],['tab.export','Export']]},
+    ['tab.summary','Game summary'],['tab.batting','Batting'],['tab.bowling','Bowling'],['tab.fielding','Fielding'],['tab.wtp','Way to Play'],['tab.export','Export']]},
   {group:'Game summary', items:[
     ['gs.info','Match information'],['gs.round','Round'],['gs.opponent','Opponent'],['gs.venue','Venue'],['gs.date','Date'],['gs.result','Result'],
-    ['gs.scorecard','Scorecard link'],['gs.sessions','Session breakdown'],['gs.scores','Innings scores'],['gs.summary','Match summary'],['gs.positives','Key positives'],
+    ['gs.scorecard','Scorecard link'],['gs.sessions','Session breakdown'],['gs.overs','Overs breakdown'],['gs.standards','Game day standards'],['gs.scores','Innings scores'],['gs.summary','Match summary'],['gs.positives','Key positives'],
     ['gs.learnings','Key learnings'],['gs.focus','Focus for next game']]},
   {group:'Batting', items:[
     ['bat.summary','Batting summary'],['bat.players','Batters'],['bat.review','Performance summary'],
@@ -482,6 +544,8 @@ const DEFAULT_BAT_MS = ['50','100','150'];
 const DEFAULT_BOWL_MS = ['3 wickets','5 wickets','10 wickets'];
 const DEFAULT_BOWL_METRICS = [{id:'maidens',label:'Maidens',kind:'overs'},{id:'overs2',label:'Overs 2 & under',kind:'overs'},{id:'boundaries',label:'Boundaries',kind:'boundaries'}];
 const INNINGS_OPTS = [['1','1st inns'],['2','2nd inns'],['m','Match']];
+const YOUTH_WTP_DESC = {read:'Recognise conditions, opposition, momentum, match situation and opportunity.', understand:'What is happening, why is it happening, and what does the game need right now.', execute:'Pressure moments influence outcomes.', adapt:'Conditions change, momentum shifts; the best players recognise change and respond first.', moments:'Recognise and win the moments that have the greatest influence on outcomes.'};
+function wtpDesc(k){ const own = db.labels && db.labels['wtp.'+k+'.d']; return (!own && isYouth() && YOUTH_WTP_DESC[k]) ? YOUTH_WTP_DESC[k] : L('wtp.'+k+'.d'); }
 function wtpLabel(k){ return L('wtp.'+k); }
 function wtpScale(v){ return v ? L('wtp.s'+v) : ''; }
 
@@ -502,29 +566,70 @@ function saveCfg(){ try{ localStorage.setItem(LS_CFG, JSON.stringify(cfg)); }cat
 
 /* ============================= FACTORIES ============================= */
 function uid(){ return Math.random().toString(36).slice(2,10); }
-function newSeason(name, prev){
-  return {id:uid(), name, archived:false,
-    batMilestoneTypes: prev ? prev.batMilestoneTypes.slice() : DEFAULT_BAT_MS.slice(),
-    bowlMilestoneTypes: prev ? prev.bowlMilestoneTypes.slice() : DEFAULT_BOWL_MS.slice(),
-    bowlMetrics: prev ? prev.bowlMetrics.map(m=>({...m})) : DEFAULT_BOWL_METRICS.map(m=>({...m})),
+/* ---- Programs (header tabs) and match formats ---- */
+const PROGRAMS = ['2xi','u17','u19'];
+const PROG_SHORT = {'2xi':'2nd XI', u17:'U17', u19:'U19'};
+function progShort(p){ return PROG_SHORT[p] || '2nd XI'; }
+function P(){ return PROGRAMS.includes(db.activeProgram) ? db.activeProgram : '2xi'; }
+function progName(p){ return L('prog.'+(p||P())); }
+function PS(){ return db.seasons.filter(s=>s.programId===P()); }
+function isYouth(p){ return (p||P())!=='2xi'; }
+const FORMATS = {
+  multi:{label:'Multi-day', short:'Multi-day'},
+  od:{label:'One-day (50 overs)', short:'One-day', blocks:['1–10','11–20','21–30','31–40','41–50'], balls:[60,60,60,60,60],
+      phases:[['Powerplay 1–10',[0]],['Middle 11–40',[1,2,3]],['Death 41–50',[4]]]},
+  t20:{label:'T20', short:'T20', pp:4, surgeFrom:13, cuts:['8','12']},
+};
+const FORMAT_KEYS = ['multi','od','t20'];
+function fmtOf(g){ return FORMATS[g && g.format] ? g.format : 'multi'; }
+function isLtd(g){ return fmtOf(g)!=='multi'; }
+function defaultFormat(p){ return isYouth(p) ? 'od' : 'multi'; }
+/* Bowling KPIs, each tagged with the formats it applies to. */
+const KPI_DEFAULTS = [
+  {id:'maidens', label:'Maidens', kind:'overs', formats:['multi','od','t20']},
+  {id:'overs2', label:'Overs 2 & under', kind:'overs', formats:['multi']},
+  {id:'boundaries', label:'Boundaries', kind:'boundaries', formats:['multi']},
+  {id:'nb1', label:'New-ball wickets (overs 1–15)', formats:['multi']},
+  {id:'midph', label:'Middle-phase wickets (overs 16–80)', formats:['multi']},
+  {id:'nb2', label:'Second new-ball wickets (80+)', formats:['multi']},
+  {id:'wides', label:'Wides', formats:['od','t20']},
+  {id:'noballs', label:'No balls', formats:['od','t20']},
+];
+function kpiFor(m, g){ return !m.formats || m.formats.includes(fmtOf(g)); }
+function newSeason(name, prev, programId){
+  const prog = programId || (prev && prev.programId) || '2xi';
+  return {id:uid(), name, archived:false, programId: prog, removedKpis:[],
+    batMilestoneTypes: prev ? prev.batMilestoneTypes.slice() : (isYouth(prog)?['30','50','100']:DEFAULT_BAT_MS.slice()),
+    bowlMilestoneTypes: prev ? prev.bowlMilestoneTypes.slice() : (isYouth(prog)?['3 wickets','4 wickets','5 wickets']:DEFAULT_BOWL_MS.slice()),
+    bowlMetrics: prev ? prev.bowlMetrics.map(m=>({...m})) : KPI_DEFAULTS.map(m=>({...m, formats:m.formats.slice()})),
     games:[], seasonSummary:'', coachReflections:'', playerNotes:{}};
 }
 function blankWtp(){ const w={overall:''}; WTP_KEYS.forEach(k=>w[k]={rating:0,comments:''}); return w; }
 const DAYS = [1,2,3,4], SESSIONS = [1,2,3];
 function blankSlot(){ return {role:'', runs:'', wkts:'', overs:''}; }
 function blankSessions(){ const o={}; DAYS.forEach(d=>SESSIONS.forEach(n=>{ o[`d${d}s${n}`]=[blankSlot(),blankSlot()]; })); return o; }
-function newGame(round){
-  return {id:uid(), round:String(round||''), opponent:'', venue:'', date:'', result:'', scorecardUrl:'', sessions:blankSessions(), sessionResults:{}, dec:{},
+function blankBlock(){ return {overs:'', runs:'', wkts:'', dots:'', fours:'', sixes:''}; }
+function blankT20Side(){ return {surge:'', cuts:FORMATS.t20.cuts.slice(), seg:{}}; }
+function blankBlockSet(f){ return {bat:FORMATS[f].blocks.map(blankBlock), bowl:FORMATS[f].blocks.map(blankBlock)}; }
+const STANDARDS = [['attitude','Attitude'],['effort','Effort'],['preparation','Preparation'],['recovery','Recovery']];
+function blankStandards(){ const o={comm:'', notes:''}; STANDARDS.forEach(([k])=>o[k]=0); return o; }
+const CATCH_GRADES = [['g1','Grade 1'],['g2','Grade 2'],['g3','Grade 3']];
+function blankFielding(){ return {g1t:'', g1d:'', g2t:'', g2d:'', g3t:'', g3d:'', ro:'', dh:'', bs:'', notes:''}; }
+function newGame(round, format){
+  return {id:uid(), round:String(round||''), format:format||'multi', opponent:'', venue:'', date:'', result:'', scorecardUrl:'', sessions:blankSessions(), sessionResults:{}, dec:{},
+    battedFirst:'', blockSets:{od:blankBlockSet('od')}, t20:{bat:blankT20Side(), bowl:blankT20Side()}, standards:blankStandards(), fielding:blankFielding(),
     scores:{q1:'',o1:'',q2:'',o2:''}, summary:'', positives:'', learnings:'', focus:'',
     battingSummary:'', batters:[], partnerships:[], batMilestones:[],
     bowlingSummary:'', bowlMetrics:{}, bowlers:[], bowlMilestones:[],
     wtp:blankWtp()};
 }
 const BAT_TEMPLATE = 'Dismissals\n1st innings - \n2nd innings - \n\n';
-function newBatter(){ return {id:uid(), name:'', i1r:'', i1b:'', i1no:false, i2r:'', i2b:'', i2no:false, review:BAT_TEMPLATE, files:[]}; }
+const LTD_TEMPLATE = 'Dismissal - \n\n';
+function batTemplate(g){ return isLtd(g) ? LTD_TEMPLATE : BAT_TEMPLATE; }
+function newBatter(){ return {id:uid(), name:'', i1r:'', i1b:'', i1no:false, i1d:'', i1f:'', i1s:'', i2r:'', i2b:'', i2no:false, i2d:'', i2f:'', i2s:'', review:BAT_TEMPLATE, files:[]}; }
 /* Review text without any unfilled template lines, so an untouched template never counts as a review or shows in exports. */
 function cleanReview(t){
-  const lines = (t||'').split('\n').filter(l=>!/^\s*(1st|2nd) innings\s*-\s*$/i.test(l));
+  const lines = (t||'').split('\n').filter(l=>!/^\s*((1st|2nd) innings|Dismissal)\s*-\s*$/i.test(l));
   const out = [];
   lines.forEach((l,i)=>{
     if(/^\s*Dismissals\s*$/i.test(l)){
@@ -536,27 +641,57 @@ function cleanReview(t){
   return out.join('\n').trim();
 }
 /* Just the written review, without the dismissals lines (used for season summary drafts). */
-function reviewBody(t){ return cleanReview(t).split('\n').filter(l=>!/^\s*Dismissals\s*$/i.test(l) && !/^\s*(1st|2nd) innings\s*-/i.test(l)).join('\n').trim(); }
+function reviewBody(t){ return cleanReview(t).split('\n').filter(l=>!/^\s*Dismissals\s*$/i.test(l) && !/^\s*((1st|2nd) innings|Dismissal)\s*-/i.test(l)).join('\n').trim(); }
 function addDismissalTemplate(id){
   const g = G(), b = g.batters.find(x=>x.id===id);
-  b.review = BAT_TEMPLATE + (b.review||'').replace(/^\s+/,''); touchGame(g); render();
+  b.review = batTemplate(g) + (b.review||'').replace(/^\s+/,''); touchGame(g); render();
 }
-function newBowler(){ return {id:uid(), name:'', i1o:'', i1m:'', i1r:'', i1w:'', i2o:'', i2m:'', i2r:'', i2w:'', review:'', files:[]}; }
+function newBowler(){ return {id:uid(), name:'', i1o:'', i1m:'', i1r:'', i1w:'', i1d:'', i1f:'', i1s:'', i2o:'', i2m:'', i2r:'', i2w:'', i2d:'', i2f:'', i2s:'', review:'', files:[]}; }
 function newPartnership(){ return {id:uid(), runs:'', wicket:'', batters:'', innings:'1'}; }
 function newMilestone(type){ return {id:uid(), player:'', type:type||'', detail:'', innings:'1'}; }
-function freshDb(){ const s = newSeason('2026/27'); return {activeSeasonId:s.id, seasons:[s], labels:{}, logo:''}; }
+function freshDb(){
+  const ss = PROGRAMS.map(p=>newSeason('2026/27', null, p));
+  return {activeProgram:'2xi', programSeason:Object.fromEntries(PROGRAMS.map((p,i)=>[p, ss[i].id])), activeSeasonId:ss[0].id, seasons:ss, labels:{}, logo:''};
+}
+/* Seasons made before programs existed belong to the 2nd XI. Each program always has at least one season. */
+function normPrograms(){
+  db.seasons.forEach(s=>{ if(!PROGRAMS.includes(s.programId)) s.programId = '2xi'; });
+  if(!PROGRAMS.includes(db.activeProgram)) db.activeProgram = '2xi';
+  if(!db.programSeason) db.programSeason = {};
+  let added = false;
+  PROGRAMS.forEach(p=>{ if(!db.seasons.some(s=>s.programId===p)){ db.seasons.push(newSeason('2026/27', null, p)); added = true; } });
+  const cur = db.seasons.find(s=>s.id===db.activeSeasonId);
+  if(!cur || cur.programId!==P()){ const ps = PS(); const pick = ps.find(s=>s.id===db.programSeason[P()]) || ps.find(s=>!s.archived) || ps[0]; db.activeSeasonId = pick.id; }
+  db.programSeason[P()] = db.activeSeasonId;
+  return added;
+}
 
+/* Earlier one-day files kept dots, 4s and 6s as one set per player; they belong to the 1st innings. */
+function moveDots(x){
+  [['dots','i1d'],['fours','i1f'],['sixes','i1s']].forEach(([a,b])=>{ if(x[a]!==undefined){ if(!has(x[b]) && has(x[a])) x[b] = x[a]; delete x[a]; } });
+  return x;
+}
 function normGame(g){
   const b = newGame(g.round);
   Object.keys(b).forEach(k=>{ if(g[k]===undefined) g[k]=b[k]; });
   g.scores = Object.assign(b.scores, g.scores||{});
+  if(!FORMATS[g.format]) g.format = 'multi';
+  g.blockSets = g.blockSets || {};
+  if(g.blocks && !g.blockSets.od) g.blockSets.od = g.blocks;      // one-day trial files stored blocks here
+  delete g.blocks;
+  delete g.blockSets.t20;      // the first T20 layout (1–6, 7–10 ...) is replaced by powerplay, Power Surge and editable groups
+  g.t20 = g.t20 || {};
+  ['bat','bowl'].forEach(sd=>{ const x = Object.assign(blankT20Side(), g.t20[sd]||{}); x.seg = x.seg||{}; Object.keys(x.seg).forEach(k=>{ x.seg[k] = Object.assign(blankBlock(), x.seg[k]); }); g.t20[sd] = x; });
+  ['od'].forEach(f=>{ const cur = g.blockSets[f]||{}; g.blockSets[f] = {}; ['bat','bowl'].forEach(sd=>{ const a = cur[sd]||[]; g.blockSets[f][sd] = FORMATS[f].blocks.map((_,i)=>Object.assign(blankBlock(), a[i]||{})); }); });
+  g.standards = Object.assign(blankStandards(), g.standards||{});
+  g.fielding = Object.assign(blankFielding(), g.fielding||{});
   const bs = blankSessions(); g.sessions = g.sessions||{};
   Object.keys(bs).forEach(k=>{ const cur = Array.isArray(g.sessions[k]) ? g.sessions[k] : []; g.sessions[k] = [0,1].map(i=>Object.assign(blankSlot(), cur[i]||{})); });
   g.wtp = g.wtp || {};
   WTP_KEYS.forEach(k=>{ g.wtp[k] = Object.assign({rating:0,comments:''}, g.wtp[k]||{}); });
   if(g.wtp.overall===undefined) g.wtp.overall='';
-  g.batters = (g.batters||[]).map(x=>Object.assign(newBatter(), x));
-  g.bowlers = (g.bowlers||[]).map(x=>Object.assign(newBowler(), x));
+  g.batters = (g.batters||[]).map(x=>moveDots(Object.assign(newBatter(), x)));
+  g.bowlers = (g.bowlers||[]).map(x=>moveDots(Object.assign(newBowler(), x)));
   g.partnerships = (g.partnerships||[]).map(x=>Object.assign(newPartnership(), x));
   g.batMilestones = (g.batMilestones||[]).map(x=>Object.assign(newMilestone(), x));
   g.bowlMilestones = (g.bowlMilestones||[]).map(x=>Object.assign(newMilestone(), x));
@@ -580,7 +715,10 @@ function normSeason(s){
   s.games = (s.games||[]).map(g=>migrateGame(normGame(g), s));
   // KPIs added later: give the standard ones their type, and add Boundaries to older seasons
   s.bowlMetrics.forEach(m=>{ if(!m.kind && (m.id==='maidens' || m.id==='overs2')) m.kind = 'overs'; });
-  if(!s.bowlMetrics.some(m=>m.id==='boundaries') && !s.removedBoundaries) s.bowlMetrics.push({id:'boundaries', label:'Boundaries', kind:'boundaries'});
+  // KPIs added in later versions: tag the formats they apply to, and add any new defaults this season hasn't removed
+  s.removedKpis = s.removedKpis || (s.removedBoundaries ? ['boundaries'] : []);
+  s.bowlMetrics.forEach(m=>{ const d = KPI_DEFAULTS.find(x=>x.id===m.id); if(!m.formats) m.formats = d ? d.formats.slice() : FORMAT_KEYS.slice(); if(d && !m.kind && d.kind) m.kind = d.kind; });
+  KPI_DEFAULTS.forEach(d=>{ if(!s.bowlMetrics.some(m=>m.id===d.id) && !s.removedKpis.includes(d.id)) s.bowlMetrics.push({...d, formats:d.formats.slice()}); });
   return s;
 }
 function normDb(){
@@ -588,7 +726,7 @@ function normDb(){
   if(!db.labels) db.labels = {};
   if(db.logo===undefined) db.logo = '';
   db.seasons.forEach(s=>{ if(!s.stub) normSeason(s); });
-  if(!db.seasons.find(s=>s.id===db.activeSeasonId)) db.activeSeasonId = (db.seasons.find(s=>!s.archived)||db.seasons[0]).id;
+  if(normPrograms()) markAllDirty();
 }
 
 /* ============================= STORAGE ============================= */
@@ -628,8 +766,8 @@ function jbDelete(bin){
   fetch(`${JB}/b/${bin}`, {method:'DELETE', headers:jbHeaders()}).catch(()=>{});
 }
 function indexRecord(){
-  return {app:'qb-2xi-season-review', version:2, activeSeasonId:db.activeSeasonId, labels:db.labels||{}, logo:db.logo||'',
-    seasons:db.seasons.map(s=>({id:s.id, name:s.name, archived:!!s.archived, _bin:s._bin||null}))};
+  return {app:'qb-2xi-season-review', version:2, activeSeasonId:db.activeSeasonId, activeProgram:P(), programSeason:db.programSeason||{}, labels:db.labels||{}, logo:db.logo||'',
+    seasons:db.seasons.map(s=>({id:s.id, name:s.name, archived:!!s.archived, programId:s.programId||'2xi', _bin:s._bin||null}))};
 }
 function seasonRecord(s){
   const {games, stub, ...rest} = s;
@@ -666,7 +804,7 @@ async function pushCloud(){
         try{ await jbPut(g._bin, g, `Saving ${gameTitle(g)}`); }
         catch(e){ if(e.status!==404) throw e; g._bin = null; }   // bin was deleted in JSONBin: make a new one below
       }
-      if(!g._bin){ g._bin = await jbCreate(`QB 2nd XI ${s.name} R${g.round} ${g.opponent}`, g); work.add('s:'+sid); }
+      if(!g._bin){ g._bin = await jbCreate(`QC ${progShort(s.programId)} ${s.name} R${g.round} ${g.opponent}`, g); work.add('s:'+sid); }
     }
     for(const key of [...work].filter(k=>k.startsWith('s:'))){
       const s = db.seasons.find(x=>x.id===key.slice(2));
@@ -675,7 +813,7 @@ async function pushCloud(){
         try{ await jbPut(s._bin, seasonRecord(s), `Saving season ${s.name}`); }
         catch(e){ if(e.status!==404) throw e; s._bin = null; }   // bin was deleted in JSONBin: make a new one below
       }
-      if(!s._bin){ s._bin = await jbCreate(`QB 2nd XI season ${s.name}`, seasonRecord(s)); work.add('i'); }
+      if(!s._bin){ s._bin = await jbCreate(`QC ${progShort(s.programId)} season ${s.name}`, seasonRecord(s)); work.add('i'); }
     }
     if(work.has('i')){
       let replaced = false;
@@ -722,10 +860,11 @@ async function boot(){
       if(local && local.pending && Array.isArray(local.seasons)){
         db = local; normDb(); markAllDirty();
       }else{
-        db = {activeSeasonId:(local&&local.activeSeasonId)||idx.activeSeasonId, labels:idx.labels||{}, logo:idx.logo||'',
+        db = {activeSeasonId:(local&&local.activeSeasonId)||idx.activeSeasonId, activeProgram:(local&&local.activeProgram)||idx.activeProgram,
+              programSeason:Object.assign({}, idx.programSeason||{}, (local&&local.programSeason)||{}), labels:idx.labels||{}, logo:idx.logo||'',
               seasons:(idx.seasons||[]).map(s=>({...s, stub:true, games:[]}))};
-        if(!db.seasons.length){ const f=freshDb(); db.seasons=f.seasons; db.activeSeasonId=f.activeSeasonId; markAllDirty(); }
-        if(!db.seasons.find(s=>s.id===db.activeSeasonId)) db.activeSeasonId = (db.seasons.find(s=>!s.archived)||db.seasons[0]).id;
+        if(!db.seasons.length){ const f=freshDb(); Object.assign(db, {seasons:f.seasons, activeSeasonId:f.activeSeasonId, activeProgram:f.activeProgram, programSeason:f.programSeason}); markAllDirty(); }
+        if(normPrograms()) markAllDirty();
         await loadSeason(S());
         writeLocal();
       }
@@ -775,14 +914,14 @@ function bowlFig(b){
   const one=(o,m,r,w)=> has(o) ? `${o}-${num(m)}-${num(r)}-${num(w)}` : '';
   return [one(b.i1o,b.i1m,b.i1r,b.i1w), one(b.i2o,b.i2m,b.i2r,b.i2w)].filter(Boolean).join(' & ');
 }
-function innScore(g, k){
+function md_innScore(g, k){
   const x = sessTotals(g)[k];
   if(x && x.n) return `${x.w}/${x.r}${g.dec && g.dec[k] ? ' dec' : ''}`;
   return (g.scores && g.scores[k]) || '';
 }
-function innOvers(g, k){ const x = sessTotals(g)[k]; return x && x.n && x.b ? ballsToOvers(x.b) : ''; }
-function scoresLine(g){ return {q:[innScore(g,'q1'),innScore(g,'q2')].filter(Boolean).join(' & '), o:[innScore(g,'o1'),innScore(g,'o2')].filter(Boolean).join(' & ')}; }
-function innScoresInner(){
+function md_innOvers(g, k){ const x = sessTotals(g)[k]; return x && x.n && x.b ? ballsToOvers(x.b) : ''; }
+function md_scoresLine(g){ return {q:[innScore(g,'q1'),innScore(g,'q2')].filter(Boolean).join(' & '), o:[innScore(g,'o1'),innScore(g,'o2')].filter(Boolean).join(' & ')}; }
+function md_innScoresInner(){
   const g = G(), o = g.opponent || 'Opponent', t = sessTotals(g);
   const cells = [['q1','QLD 1st innings'],['o1',o+' 1st innings'],['q2','QLD 2nd innings'],['o2',o+' 2nd innings']];
   return `<div class="is-grid">${cells.map(([k,l])=>{ const sc = innScore(g,k), ov = innOvers(g,k);
@@ -809,7 +948,7 @@ function battingSeason(s){
   const map = new Map();
   sortedGames(s).forEach(g=>g.batters.forEach(b=>{
     const k = pkey(b.name); if(!k) return;
-    if(!map.has(k)) map.set(k, {key:k, name:b.name.trim(), inns:0, no:0, runs:0, balls:0, hs:-1, hsNo:false, fifties:0, hundreds:0, entries:[]});
+    if(!map.has(k)) map.set(k, {key:k, name:b.name.trim(), inns:0, no:0, runs:0, balls:0, hs:-1, hsNo:false, fifties:0, hundreds:0, acc:rateSums([]), entries:[]});
     const p = map.get(k);
     [['i1r','i1b','i1no'],['i2r','i2b','i2no']].forEach(([r,bl,no])=>{
       if(!has(b[r])) return;
@@ -818,17 +957,19 @@ function battingSeason(s){
       if(runs>=100) p.hundreds++; else if(runs>=50) p.fifties++;
       if(runs>p.hs || (runs===p.hs && b[no])){ p.hs=runs; p.hsNo=!!b[no]; }
     });
+    rateSums(batInns(b), p.acc);
     p.entries.push({game:g, item:b});
   }));
-  return [...map.values()].map(p=>({...p, avg: p.inns-p.no>0 ? p.runs/(p.inns-p.no) : null, sr: p.balls ? p.runs/p.balls*100 : null,
-    hsText: p.hs<0 ? '–' : p.hs+(p.hsNo?'*':''), reviews: p.entries.filter(e=>cleanReview(e.item.review)).length}))
+  return [...map.values()].map(p=>{ const x = rateOut(p.acc);
+    return {...p, avg: p.inns-p.no>0 ? p.runs/(p.inns-p.no) : null, sr: x.sr, dotPct: x.dotPct, bndPct: x.bndPct, bpb: x.bpb,
+      hsText: p.hs<0 ? '–' : p.hs+(p.hsNo?'*':''), reviews: p.entries.filter(e=>cleanReview(e.item.review)).length}; })
     .sort((a,b)=>b.runs-a.runs || a.name.localeCompare(b.name));
 }
 function bowlingSeason(s){
   const map = new Map();
   sortedGames(s).forEach(g=>g.bowlers.forEach(b=>{
     const k = pkey(b.name); if(!k) return;
-    if(!map.has(k)) map.set(k, {key:k, name:b.name.trim(), balls:0, maidens:0, runs:0, wkts:0, best:null, entries:[]});
+    if(!map.has(k)) map.set(k, {key:k, name:b.name.trim(), balls:0, maidens:0, runs:0, wkts:0, best:null, acc:rateSums([]), entries:[]});
     const p = map.get(k);
     [['i1o','i1m','i1r','i1w'],['i2o','i2m','i2r','i2w']].forEach(([o,m,r,w])=>{
       if(!has(b[o])) return;
@@ -836,10 +977,13 @@ function bowlingSeason(s){
       const fig = {w:num(b[w]), r:num(b[r])};
       if(!p.best || fig.w>p.best.w || (fig.w===p.best.w && fig.r<p.best.r)) p.best = fig;
     });
+    rateSums(bowlInns(b), p.acc);
     p.entries.push({game:g, item:b});
   }));
-  return [...map.values()].map(p=>({...p, overs:ballsToOvers(p.balls), avg: p.wkts ? p.runs/p.wkts : null, econ: p.balls ? p.runs/(p.balls/6) : null,
-    bestText: p.best ? `${p.best.w}/${p.best.r}` : '–', reviews: p.entries.filter(e=>cleanReview(e.item.review)).length}))
+  return [...map.values()].map(p=>{ const x = rateOut(p.acc);
+    return {...p, overs:ballsToOvers(p.balls), avg: p.wkts ? p.runs/p.wkts : null, econ: p.balls ? p.runs/(p.balls/6) : null,
+      dotPct: x.dotPct, bndPct: x.bndPct, bpb: x.bpb,
+      bestText: p.best ? `${p.best.w}/${p.best.r}` : '–', reviews: p.entries.filter(e=>cleanReview(e.item.review)).length}; })
     .sort((a,b)=>b.wkts-a.wkts || (a.avg??999)-(b.avg??999) || a.name.localeCompare(b.name));
 }
 function partnershipBuckets(games){
@@ -859,13 +1003,13 @@ function gameBowlerSums(g){
   return {maidens, wkts, overs:ballsToOvers(balls)};
 }
 /* Completed overs QLD bowled in each innings (bowler figures first, otherwise the session breakdown). */
-function oversBowled(g, inn){
+function md_oversBowled(g, inn){
   let balls = 0; g.bowlers.forEach(b=>{ balls += oversToBalls(inn===1?b.i1o:b.i2o); });
   const t = sessTotals(g)['o'+inn]; if(t && t.b > balls) balls = t.b;   // innings total wins if bowler figures are incomplete
   return Math.floor(balls/6);
 }
 /* Runs QLD conceded in each innings (session breakdown first, so extras are included; otherwise bowler figures). */
-function runsConceded(g, inn){
+function md_runsConceded(g, inn){
   const t = sessTotals(g)['o'+inn]; if(t && t.n) return t.r;
   let r = 0; g.bowlers.forEach(b=>{ r += num(inn===1?b.i1r:b.i2r); }); return r;
 }
@@ -891,7 +1035,7 @@ function pctStr(n, d){ return d>0 ? Math.round(n/d*100)+'%' : ''; }
 function kpiText(g, m){
   const x = metricSplit(g, m), t = (x.a||0)+(x.b||0);
   const part = (lab, v, inn)=>{ const p = kpiPct(g, m, inn); return `${lab} ${v||0}${p?`, ${p}`:''}`; };
-  const both = x.b ? ` (${part('1st', x.a, 1)}; ${part('2nd', x.b, 2)})` : (kpiPct(g,m,1)?` (${kpiPct(g,m,1)})`:'');
+  const both = (x.b && !isLtd(g)) ? ` (${part('1st', x.a, 1)}; ${part('2nd', x.b, 2)})` : (kpiPct(g,m,1)?` (${kpiPct(g,m,1)})`:'');
   return `${t}${both}`;
 }
 function metricSplit(g, m){
@@ -903,7 +1047,7 @@ function metricSplit(g, m){
   }
   return {a: has(e.value)?num(e.value):null, b: has(e.value2)?num(e.value2):null, auto:false};
 }
-function kpiCellsInner(id){
+function md_kpiCellsInner(id){
   const g = G(), m = S().bowlMetrics.find(x=>x.id===id); if(!m) return '';
   const x = metricSplit(g, m), e = g.bowlMetrics[id]||{};
   const box = (k,v,lab)=> x.auto ? `<span class="kpi-auto" title="Added up from the bowlers' figures">${v}</span>`
@@ -931,11 +1075,14 @@ function bowlingTeamSeason(s){
   s.games.forEach(g=>{ wkts += gameBowlerSums(g).wkts; });
   const ov = s.games.reduce((a,g)=>a+oversBowled(g,1)+oversBowled(g,2),0);
   const rc = s.games.reduce((a,g)=>a+runsConceded(g,1)+runsConceded(g,2),0);
-  return {wkts, metrics: s.bowlMetrics.map(m=>{
-    const total = s.games.reduce((a,g)=>a+metricValue(g,m),0);
+  return {wkts, metrics: s.bowlMetrics.filter(m=>s.games.some(g=>kpiFor(m,g))).map(m=>{
+    const gs = s.games.filter(g=>kpiFor(m,g));
+    const ov = gs.reduce((a,g)=>a+oversBowled(g,1)+oversBowled(g,2),0);
+    const rc = gs.reduce((a,g)=>a+runsConceded(g,1)+runsConceded(g,2),0);
+    const total = gs.reduce((a,g)=>a+metricValue(g,m),0);
     let pc = '';
     if(m.kind==='overs' && ov) pc = pctStr(total, ov);
-    if(m.kind==='boundaries' && rc && total){ const br = s.games.reduce((a,g)=>{ const e=g.bowlMetrics[m.id]||{}; return a+bndRuns(e,1)+bndRuns(e,2); },0); pc = pctStr(br, rc) + ' of runs'; }
+    if(m.kind==='boundaries' && rc && total){ const br = gs.reduce((a,g)=>{ const e=g.bowlMetrics[m.id]||{}; return a+bndRuns(e,1)+bndRuns(e,2); },0); pc = pctStr(br, rc) + ' of runs'; }
     return {label: m.label + (pc?` (${pc})`:''), total};
   })};
 }
@@ -965,8 +1112,302 @@ function toast(msg){
   clearTimeout(toastTimer); toastTimer = setTimeout(()=>t.classList.remove('show'), 2400);
 }
 
+
+/* ============================= LIMITED OVERS (one-day and T20) ============================= */
+/* Each limited-overs match keeps its one-day blocks (g.blockSets.od) and T20 rows (g.t20) separately, so a game cut
+   from 50 overs to T20 keeps both. Results are stored as "od:bat0", "t20:batpp", "t20:bowl15-16" etc. */
+function fmtDef(g){ return FORMATS[fmtOf(g)]; }
+/* Overs breakdown rows for one innings. One-day: five fixed 10-over blocks.
+   T20: powerplay 1–4, then groups the coach can re-cut, split around the batting side's Power Surge.
+   Each row: key (stores data and the won/even/lost dot), label, default balls, season group, data. */
+function t20Ends(x){
+  const S = parseInt(x.surge), ends = new Set([20]);
+  (x.cuts||[]).forEach(c=>{ const n = parseInt(c); if(n>=5 && n<20) ends.add(n); });
+  if(S){ [...ends].forEach(e=>{ if(e===S) ends.delete(e); }); if(S-1>=5) ends.add(S-1); ends.add(S+1); }
+  return [...ends].sort((a,b)=>a-b);
+}
+function segs(g, side){
+  const f = fmtOf(g);
+  if(f==='od') return FORMATS.od.blocks.map((lbl,i)=>({key:String(i), lbl, balls:60, grp:String(i), data:g.blockSets.od[side][i]}));
+  const x = g.t20[side], S = parseInt(x.surge), pp = FORMATS.t20.pp;
+  const out = [{key:'pp', lbl:`PP 1–${pp}`, balls:pp*6, grp:'pp'}];
+  let a = pp+1;
+  t20Ends(x).forEach(b=>{ if(b<a) return;
+    const surge = S && a===S;
+    out.push({key:`${a}-${b}`, lbl: surge ? `Surge ${a}–${b}` : (a===b ? `${a}` : `${a}–${b}`), balls:(b-a+1)*6, surge,
+      grp: surge ? 'surge' : !S ? 'nosurge' : (b<S ? 'pre' : 'post')});
+    a = b+1; });
+  out.forEach(s=>{ if(!x.seg[s.key]) x.seg[s.key] = blankBlock(); s.data = x.seg[s.key]; });
+  return out;
+}
+function segAt(g, side, key){ return segs(g, side).find(s=>s.key===key); }
+function rkey(g, side, key){ return `${fmtOf(g)}:${side}${key}`; }
+function sideTotal(g, side){ const ss = segs(g, side); return sumBlocks(ss.map(s=>s.data), ss.map(s=>s.balls)); }
+function setT20(side, field, val){ const g = G(); g.t20[side][field] = val; touchGame(g); render(); }
+function setT20Cut(side, i, val){ const g = G(); const c = g.t20[side].cuts.slice(); c[i] = val; g.t20[side].cuts = c; touchGame(g); }
+function t20Controls(g, side){
+  const x = g.t20[side], F = FORMATS.t20;
+  const opts = [['','Not taken'], ...Array.from({length:20-F.surgeFrom}, (_,i)=>{ const s = F.surgeFrom+i; return [String(s), `Overs ${s}–${s+1}`]; })];
+  return `<div class="t20-ctl">
+    <label><span class="mini-label">Power Surge</span><select onchange="setT20('${side}','surge',this.value)">${opts.map(([v,l])=>`<option value="${v}" ${String(x.surge||'')===v?'selected':''}>${l}</option>`).join('')}</select></label>
+    <label><span class="mini-label">Groups end at over</span><span class="t20-cuts">${[0,1].map(i=>`<input type="number" min="5" max="19" inputmode="numeric" aria-label="Group ${i+1} ends at over" value="${esc((x.cuts||[])[i]||'')}" oninput="setT20Cut('${side}',${i},this.value)" onchange="render()">`).join('')}</span></label>
+  </div>`;
+}
+function blockHas(bl){ return ['overs','runs','wkts','dots','fours','sixes'].some(k=>has(bl[k])); }
+function blockBalls(bl, dflt){ return has(bl.overs) ? oversToBalls(bl.overs) : (blockHas(bl) ? dflt : 0); }   // a block left without overs counts as complete
+function sumBlocks(list, dflt){
+  const t = {r:0, w:0, b:0, n:0, dots:0, db:0, fours:0, sixes:0, br:0};
+  list.forEach((bl,i)=>{
+    if(!bl || !blockHas(bl)) return;
+    const balls = blockBalls(bl, Array.isArray(dflt) ? dflt[i] : dflt);
+    t.n++; t.r += num(bl.runs); t.w += num(bl.wkts); t.b += balls;
+    if(has(bl.dots)){ t.dots += num(bl.dots); t.db += balls; }
+    if(has(bl.fours) || has(bl.sixes)){ t.fours += num(bl.fours); t.sixes += num(bl.sixes); t.br += num(bl.runs); }
+  });
+  return t;
+}
+function srOf(t){ return t.b ? f1(t.r/t.b*100) : '–'; }                 // S/R: runs per 100 balls
+function erOf(t){ return t.b ? f2(t.r/(t.b/6)) : '–'; }                // E/R: runs per over
+function rateOf(side, t){ return side==='bat' ? srOf(t) : erOf(t); }
+function rateLbl(side){ return side==='bat' ? 'S/R' : 'E/R'; }
+function pct(n, d){ return d>0 ? Math.round(n/d*100)+'%' : '–'; }
+function dotPct(t){ return pct(t.dots, t.db); }                     // dots ÷ balls
+function bndPct(t){ return pct(t.fours*4 + t.sixes*6, t.br); }      // runs from 4s and 6s ÷ total runs
+function sideOrder(g){ return g.battedFirst==='bowl' ? ['bowl','bat'] : ['bat','bowl']; }
+function sideTitle(g, side){ return side==='bat' ? 'QLD batting' : `${g.opponent||'Opponent'} batting`; }
+function lo_innScore(g, k){
+  if(k==='q1' || k==='o1'){ const t = sideTotal(g, k==='q1'?'bat':'bowl'); if(t.n) return `${t.w}/${t.r}`; }
+  return k==='q1'||k==='o1' ? ((g.scores && g.scores[k]) || '') : '';
+}
+function lo_innOvers(g, k){ if(k!=='q1' && k!=='o1') return ''; const t = sideTotal(g, k==='q1'?'bat':'bowl'); return t.n && t.b ? ballsToOvers(t.b) : ''; }
+function lo_scoresLine(g){ return {q:innScore(g,'q1'), o:innScore(g,'o1')}; }
+function lo_innScoresInner(){
+  const g = G(), o = g.opponent || 'Opponent';
+  const order = sideOrder(g).map(sd=>sd==='bat'?['q1','QLD']:['o1',o]);
+  return `<div class="is-grid two">${order.map(([k,l])=>{ const t = sideTotal(g, k==='q1'?'bat':'bowl'), sc = innScore(g,k), ov = innOvers(g,k);
+    return `<div class="is-cell"><div class="it-h">${esc(l)}</div><div class="is-v">${esc(sc||'–')}</div>
+      <div class="is-foot"><span>${ov?ov+' ov':''}</span></div></div>`; }).join('')}</div>`;
+}
+function obCalcInner(arg){ const [side,key] = arg.split(':'); const s = segAt(G(), side, key); if(!s) return ''; const t = sumBlocks([s.data], s.balls); return `<span>${dotPct(t)}</span><span>${bndPct(t)}</span><span>${t.n?rateOf(side,t):'–'}</span>`; }
+function obTotalInner(side){
+  const t = sideTotal(G(), side);
+  return `<div class="ob-lbl">Total</div><div>${t.n?ballsToOvers(t.b):'–'}</div><div>${t.n?t.r:'–'}</div><div>${t.n?t.w:'–'}</div><div>${t.n?t.dots:'–'}</div><div>${t.n?t.fours:'–'}</div><div>${t.n?t.sixes:'–'}</div><div class="ob-pct">${dotPct(t)}</div><div class="ob-pct">${bndPct(t)}</div><div class="ob-pct">${t.n?rateOf(side,t):'–'}</div>`;
+}
+function setBlock(side, key, field, val){ const g=G(); const s = segAt(g, side, key); if(!s) return; s.data[field]=val; touchGame(g); live(); }
+function obTable(g, side){
+  const ss = segs(g, side);
+  const f = (s,k,label)=>`<input type="${k==='overs'?'text':'number'}" ${k==='overs'?'inputmode="decimal"':'min="0"'} aria-label="${label}" ${k==='overs'?`placeholder="${ballsToOvers(s.balls)}"`:''} value="${esc(s.data[k])}" oninput="setBlock('${side}','${s.key}','${k}',this.value)">`;
+  return `<div class="ob-table">
+    <div class="ob-title">${esc(sideTitle(g, side))}</div>
+    ${fmtOf(g)==='t20' ? t20Controls(g, side) : ''}
+    <div class="ob-row ob-head"><div>Overs</div><div>Ov</div><div>Runs</div><div>W</div><div>Dots</div><div>4s</div><div>6s</div><div>Dot %</div><div>4s/6s %</div><div>${rateLbl(side)}</div></div>
+    ${ss.map(s=>{ const key=rkey(g,side,s.key), res=(g.sessionResults||{})[key]||''; return `<div class="ob-row${s.surge?' surge':''}" id="cell-${key}" data-res="${res}"><div class="ob-lbl"><button class="sr-dot" onclick="cycleSessResult('${key}')" title="Result: tap for won, again for even, again for lost" aria-label="Block result: ${res||'not set'}"></button>${s.lbl}</div>${f(s,'overs','Overs')}${f(s,'runs','Runs')}${f(s,'wkts','Wickets')}${f(s,'dots','Dots')}${f(s,'fours','Fours')}${f(s,'sixes','Sixes')}<div class="ob-calc" data-live="obCalc" data-arg="${side}:${s.key}">${obCalcInner(side+':'+s.key)}</div></div>`; }).join('')}
+    <div class="ob-row ob-total" data-live="obTotal" data-arg="${side}">${obTotalInner(side)}</div>
+  </div>`;
+}
+function lo_sessionPanel(g){
+  const open = !!view.sessOpen;
+  return `<div class="panel sess-panel ${open?'open':''}" id="sess-panel">
+    <button class="sess-toggle" aria-expanded="${open}" onclick="toggleSessions()">
+      <span class="panel-title">${LE('gs.overs')}</span>
+      <span class="tally-wrap" data-live="sessTally">${tallyInner()}</span>${chevron()}
+    </button>
+    <div class="sess-body"><div class="sess-scroll">${sideOrder(g).map(sd=>obTable(g, sd)).join('')}</div></div>
+  </div>`;
+}
+function setStd(k, v){ const g=G(); g.standards[k] = g.standards[k]===v ? 0 : v; touchGame(g); render(); }
+function setComm(v){ const g=G(); g.standards.comm = g.standards.comm===v ? '' : v; touchGame(g); render(); }
+function setGR(path, val){ setG(path, val); render(); }
+function standardsPanel(g){
+  const st = g.standards;
+  return `<div class="panel">
+    <div class="panel-head"><div class="panel-title">${LE('gs.standards')}</div></div>
+    <div class="std-grid">${STANDARDS.map(([k,l])=>`<div class="std-row"><span class="std-label">${l}</span>
+      <div class="std-rate">${[1,2,3,4,5].map(v=>`<button class="${st[k]===v?'sel':''}" aria-pressed="${st[k]===v}" onclick="setStd('${k}',${v})">${v}</button>`).join('')}</div></div>`).join('')}</div>
+    <label class="field-label">Communication</label>
+    <div class="seg">${['Tactical','Balanced','Emotional'].map(c=>`<button class="${st.comm===c?'on':''}" onclick="setComm('${c}')">${c}</button>`).join('')}</div>
+    <label class="field-label">Notes</label>
+    <textarea oninput="setG('standards.notes',this.value)">${esc(st.notes)}</textarea>
+  </div>`;
+}
+/* ---- Player rate measures, every format ----
+   S/R = runs per 100 balls. E/R = runs per over. Dot % = dots / balls. 4s/6s % = runs from boundaries / runs.
+   BPB (balls per boundary) = balls / (4s + 6s). Each measure only counts innings where its numbers were entered. */
+function batInns(b){ return [1,2].map(n=>({r:b['i'+n+'r'], b:b['i'+n+'b'], d:b['i'+n+'d'], f:b['i'+n+'f'], s:b['i'+n+'s']})).filter(x=>has(x.r)); }
+function bowlInns(b){ return [1,2].map(n=>({r:b['i'+n+'r'], b:has(b['i'+n+'o'])?String(oversToBalls(b['i'+n+'o'])):'', d:b['i'+n+'d'], f:b['i'+n+'f'], s:b['i'+n+'s']})).filter(x=>has(x.b)); }
+function rateSums(list, acc){
+  acc = acc || {srRuns:0, srBalls:0, dots:0, dotBalls:0, bndRuns:0, bndBase:0, bnds:0, bndBalls:0};
+  list.forEach(x=>{
+    const r = num(x.r), b = num(x.b);
+    if(has(x.b) && b){ acc.srRuns += r; acc.srBalls += b; }
+    if(has(x.d) && b){ acc.dots += num(x.d); acc.dotBalls += b; }
+    if(has(x.f) || has(x.s)){ acc.bndRuns += num(x.f)*4 + num(x.s)*6; acc.bndBase += r; acc.bnds += num(x.f)+num(x.s); if(b) acc.bndBalls += b; }
+  });
+  return acc;
+}
+function rateOut(a){
+  return {sr: a.srBalls ? a.srRuns/a.srBalls*100 : null, er: a.srBalls ? a.srRuns/(a.srBalls/6) : null,
+    dotPct: pct(a.dots, a.dotBalls), bndPct: pct(a.bndRuns, a.bndBase), bpb: a.bnds && a.bndBalls ? f1(a.bndBalls/a.bnds) : (a.bndBalls ? 'None' : '–')};
+}
+function rateLine(x, first){
+  const out = [first];
+  if(x.dotPct!=='–') out.push(`Dots ${x.dotPct}`);
+  if(x.bndPct!=='–') out.push(`4s/6s ${x.bndPct} of runs`);
+  if(x.bpb!=='–') out.push(`Balls per boundary ${x.bpb}`);
+  return out.filter(Boolean).join(', ');
+}
+function batRates(b){ const x = rateOut(rateSums(batInns(b))); return rateLine(x, x.sr!=null ? `S/R ${f1(x.sr)}` : ''); }
+function bowlRates(b){ const x = rateOut(rateSums(bowlInns(b))); return rateLine(x, x.er!=null ? `E/R ${f2(x.er)}` : ''); }
+function partFlat(g){
+  const rows = g.partnerships;
+  return `${rows.length ? `<div class="grid-row part-row head-row"><div class="row-head">Runs</div><div class="row-head">Wicket</div><div class="row-head">Batters</div><div></div></div>` : ''}
+    ${rows.map(p=>`<div class="grid-row part-row">
+      <input type="number" min="0" placeholder="Runs" data-part="${p.id}" value="${esc(p.runs)}" oninput="setItem('partnerships','${p.id}','runs',this.value)">
+      <select onchange="setItem('partnerships','${p.id}','wicket',this.value)"><option value="">Wicket</option>${WICKETS.map(w=>`<option ${p.wicket===w?'selected':''}>${w}</option>`).join('')}</select>
+      <input type="text" placeholder="Batters" value="${esc(p.batters)}" oninput="setItem('partnerships','${p.id}','batters',this.value)">
+      <button class="icon-btn danger" onclick="removeItem('partnerships','${p.id}')" aria-label="Remove partnership">×</button>
+    </div>`).join('')}
+    <button class="add-btn" onclick="addPartnership('1')">+ Add partnership</button>`;
+}
+function oversBlocks(g){
+  const out = [];
+  sideOrder(g).forEach(side=>{
+    const t = sideTotal(g, side); if(!t.n) return;
+    out.push({t:'sub', text: sideTitle(g, side) + (fmtOf(g)==='t20' && g.t20[side].surge ? `, Power Surge overs ${g.t20[side].surge}–${+g.t20[side].surge+1}` : '')});
+    const rows = segs(g, side).map(s=>{ const bl=s.data; if(!blockHas(bl)) return null; const x=sumBlocks([bl], s.balls);
+      const res = (g.sessionResults||{})[rkey(g,side,s.key)]; return [s.lbl+(res?` (${res})`:''), `${x.w}/${x.r}`, ballsToOvers(x.b), has(bl.dots)?bl.dots:'–', `${num(bl.fours)} / ${num(bl.sixes)}`, dotPct(x), bndPct(x), rateOf(side,x)]; }).filter(Boolean);
+    rows.push(['Total', `${t.w}/${t.r}`, ballsToOvers(t.b), t.dots, `${t.fours} / ${t.sixes}`, dotPct(t), bndPct(t), rateOf(side,t)]);
+    out.push({t:'table', head:['Overs','Score','Ov','Dots','4s / 6s','Dot %','4s/6s %',rateLbl(side)], rows, totals:1});
+  });
+  return out;
+}
+function standardsBlocks(g){
+  const st = g.standards, rated = STANDARDS.filter(([k])=>st[k]);
+  if(!rated.length && !st.comm && !(st.notes||'').trim()) return [];
+  const rows = STANDARDS.map(([k,l])=>[l, st[k]?`${st[k]}/5`:'–']);
+  rows.push(['Communication', st.comm||'–']);
+  return [{t:'h', text:L('gs.standards')}, {t:'kv', rows}, ...((st.notes||'').trim()?[{t:'p', text:st.notes}]:[])];
+}
+function lo_matchHeroInner(g){
+  const o = g.opponent || 'Opponent';
+  const meta = [fmtDef(g).label, g.venue, fmtDate(g.date)].filter(Boolean).join(', ');
+  const url = safeUrl(g.scorecardUrl);
+  const sc = (k)=>`${esc(innScore(g,k)||'–')}${innOvers(g,k)?` <small style="font-size:13px;opacity:.7">(${innOvers(g,k)})</small>`:''}`;
+  return `<div class="snap-top">
+      <div><div class="snap-round">${LE('gs.round')} ${esc(g.round||'–')}, Season ${esc(S().name)}</div>
+        <div class="snap-name">v ${esc(g.opponent||'Opponent TBC')}</div>
+        <div class="snap-role">${esc(meta)}${url?` <a href="${esc(url)}" target="_blank" rel="noopener">View scorecard</a>`:''}</div></div>
+      ${resultChip(g.result, true)}
+    </div>
+    <div class="snap-grid two">
+      <div class="snap-card"><div class="snap-label">QLD</div><div class="snap-value score">${sc('q1')}</div></div>
+      <div class="snap-card"><div class="snap-label">${esc(o)}</div><div class="snap-value score">${sc('o1')}</div></div>
+    </div>`;
+}
+function lo_oversBowled(g, inn){
+  if(inn!==1) return 0;
+  let balls = 0; g.bowlers.forEach(b=>{ balls += oversToBalls(b.i1o); });
+  const t = sideTotal(g,'bowl'); if(t.b > balls) balls = t.b;
+  return Math.floor(balls/6);
+}
+function lo_runsConceded(g, inn){
+  if(inn!==1) return 0;
+  const t = sideTotal(g,'bowl'); if(t.n) return t.r;
+  let r = 0; g.bowlers.forEach(b=>{ r += num(b.i1r); }); return r;
+}
+function lo_kpiCellsInner(id){
+  const g = G(), m = S().bowlMetrics.find(x=>x.id===id); if(!m) return '';
+  const x = metricSplit(g, m), e = g.bowlMetrics[id]||{};
+  const box = x.auto ? `<span class="kpi-auto" title="Added up from the bowlers' figures">${x.a}</span>`
+    : `<input type="number" min="0" aria-label="${esc(m.label)}" value="${esc(e.value||'')}" oninput="setMetricField('${id}','value',this.value)">`;
+  return `${box}<small class="kpi-pc" data-live="kpiPct" data-arg="${id}:1">${m.kind?kpiPct(g, m, 1):''}</small>`;
+}
+function lo_sessionBlocks(g){
+  const t = sessResultTally([g]), any = t.won+t.even+t.lost;
+  const ob = oversBlocks(g);
+  if(!ob.length && !any) return [];
+  return [...ob, ...(any?[{t:'small', text:`Blocks: ${tallyText(t)}`}]:[])];
+}
+function lo_playerCard(p, list){
+  const bat = list==='batters', open = openPlayers.has(p.id);
+  if(bat && !(p.review||'').trim()) p.review = LTD_TEMPLATE;
+  const F = (k, label, type)=>`<div><div class="mini-label">${label}</div><input type="${type||'number'}" ${type==='text'?'inputmode="decimal"':'min="0"'} value="${esc(p[k])}" oninput="setItem('${list}','${p.id}','${k}',this.value)"></div>`;
+  const fields = bat
+    ? `<div class="inn-block"><div class="inn-fields od-bat">
+        ${F('i1r','Runs')}${F('i1b','Balls')}${F('i1f','4s')}${F('i1s','6s')}${F('i1d','Dots')}
+        <label class="no-toggle"><input type="checkbox" ${p.i1no?'checked':''} onchange="setItem('batters','${p.id}','i1no',this.checked)">Not out</label>
+      </div>${playerKpiHtml(p,'batters',1)}</div>`
+    : `<div class="inn-block"><div class="inn-fields od-bowl">
+        ${F('i1o','Overs','text')}${F('i1m','Maidens')}${F('i1r','Runs')}${F('i1w','Wickets')}${F('i1d','Dots')}${F('i1f','4s')}${F('i1s','6s')}
+      </div>${playerKpiHtml(p,'bowlers',1)}</div>`;
+  return playerShell(p, list, open, `<div class="pc-fig" data-live="${bat?'batFig':'bowlFig'}" data-arg="${p.id}">${LIVE[bat?'batFig':'bowlFig'](p.id)}</div><div class="od-grid">${fields}</div>`);
+}
+/* Season overs-breakdown table for one limited-overs format, block by block then by phase. */
+const T20_GROUPS = [['pp','Powerplay 1–4'],['pre','Before the surge'],['surge','Power Surge'],['post','After the surge'],['nosurge','Overs 5–20, no surge']];
+function ltdSeasonRows(games, f){
+  const gs = games.filter(g=>fmtOf(g)===f);
+  if(!gs.length) return null;
+  const mk = (lbl, match, phase)=>{
+    const sides = {};
+    ['bat','bowl'].forEach(sd=>{ const list = gs.flatMap(g=>segs(g, sd).filter(match)); sides[sd] = sumBlocks(list.map(s=>s.data), list.map(s=>s.balls)); });
+    const res = {won:0, even:0, lost:0};
+    gs.forEach(g=>['bat','bowl'].forEach(sd=>segs(g, sd).filter(match).forEach(s=>{ const v=(g.sessionResults||{})[rkey(g,sd,s.key)]; if(res[v]!==undefined) res[v]++; })));
+    return {lbl, bat:sides.bat, bowl:sides.bowl, res, phase};
+  };
+  let blocks, phases;
+  if(f==='od'){
+    blocks = FORMATS.od.blocks.map((lbl,i)=>mk(lbl, s=>s.grp===String(i), false));
+    phases = FORMATS.od.phases.map(([lbl, idx])=>mk(lbl, s=>idx.includes(+s.grp), true));
+  } else {
+    blocks = T20_GROUPS.map(([k,lbl])=>mk(lbl, s=>s.grp===k, false)).filter(r=>r.bat.n||r.bowl.n||r.res.won||r.res.even||r.res.lost);
+    phases = [];
+  }
+  if(!blocks.some(r=>r.bat.n||r.bowl.n||r.res.won||r.res.even||r.res.lost)) return null;
+  return {f, blocks, phases, games: gs, surge: f==='t20' ? surgeTiming(gs) : null};
+}
+/* When the Power Surge was taken: average starting over, QLD batting and opposition batting. */
+function surgeTiming(gs){
+  const one = sd=>{ const v = gs.map(g=>parseInt(g.t20[sd].surge)).filter(n=>n); return v.length ? {avg: v.reduce((a,b)=>a+b,0)/v.length, n:v.length, list:v} : null; };
+  return {bat: one('bat'), bowl: one('bowl')};
+}
+function surgeText(x){
+  if(!x || (!x.bat && !x.bowl)) return '';
+  const p = (t, who)=> t ? `${who} took it from over ${f1(t.avg)} on average (${plural(t.n,'innings','innings')})` : '';
+  return 'Power Surge: ' + [p(x.bat,'QLD'), p(x.bowl,'opposition')].filter(Boolean).join('; ');
+}
+function rr(t){ return t.b ? f2(t.r/(t.b/6)) : '–'; }
+function wpi(t, n){ return n ? f1(t.w/n) : '–'; }
+function ltdSeasonPanel(x){
+  const bl = 'border-left:1px solid var(--line);';
+  const st = sessResultTally(x.games);
+  const row = (r)=>`<tr${r.phase?' style="background:rgba(110,27,60,0.05)"':''}><td class="name">${r.lbl}</td><td style="color:var(--green);font-weight:700">${r.phase?'':r.res.won}</td><td style="color:#8A6418;font-weight:700">${r.phase?'':r.res.even}</td><td style="color:var(--red);font-weight:700">${r.phase?'':r.res.lost}</td><td style="${bl}">${srOf(r.bat)}</td><td>${r.bat.w}</td><td>${dotPct(r.bat)}</td><td>${bndPct(r.bat)}</td><td style="${bl}">${erOf(r.bowl)}</td><td>${r.bowl.w}</td><td>${dotPct(r.bowl)}</td><td>${bndPct(r.bowl)}</td></tr>`;
+  return `<div class="panel">
+    <div class="panel-head"><div class="panel-title">${LE('gs.overs')}, ${esc(FORMATS[x.f].short)}</div><span class="tally-wrap">${(st.won+st.even+st.lost)?`<span class="tally won">Won ${st.won}</span><span class="tally even">Even ${st.even}</span><span class="tally lost">Lost ${st.lost}</span>`:''}</span></div>
+    <div class="table-wrap"><table class="stat-table">
+      <thead><tr><th></th><th colspan="3" style="text-align:center">Blocks</th><th colspan="4" style="text-align:center;${bl}">QLD batting</th><th colspan="4" style="text-align:center;${bl}">QLD bowling</th></tr>
+      <tr><th>${x.f==='t20'?'Phase':'Overs'}</th><th>Won</th><th>Even</th><th>Lost</th><th style="${bl}">S/R</th><th>Wkts lost</th><th>Dot %</th><th>4s/6s %</th><th style="${bl}">E/R</th><th>Wkts taken</th><th>Dot %</th><th>4s/6s %</th></tr></thead>
+      <tbody>${x.blocks.map(row).join('')}${x.phases.map(row).join('')}</tbody>
+    </table></div>
+    ${surgeText(x.surge)?`<div class="muted" style="margin-top:10px;font-size:12.5px;">${esc(surgeText(x.surge))}</div>`:''}
+  </div>`;
+}
+
+
+/* ---- Format dispatch: multi-day (md_) or limited overs (lo_) ---- */
+function innScore(g,k){ return isLtd(g) ? lo_innScore(g,k) : md_innScore(g,k); }
+function innOvers(g,k){ return isLtd(g) ? lo_innOvers(g,k) : md_innOvers(g,k); }
+function scoresLine(g){ return isLtd(g) ? lo_scoresLine(g) : md_scoresLine(g); }
+function innScoresInner(){ return isLtd(G()) ? lo_innScoresInner() : md_innScoresInner(); }
+function sessionPanel(g){ return isLtd(g) ? lo_sessionPanel(g) : md_sessionPanel(g); }
+function matchHeroInner(g){ return isLtd(g) ? lo_matchHeroInner(g) : md_matchHeroInner(g); }
+function oversBowled(g,inn){ return isLtd(g) ? lo_oversBowled(g,inn) : md_oversBowled(g,inn); }
+function runsConceded(g,inn){ return isLtd(g) ? lo_runsConceded(g,inn) : md_runsConceded(g,inn); }
+function kpiCellsInner(id){ return isLtd(G()) ? lo_kpiCellsInner(id) : md_kpiCellsInner(id); }
+function sessionBlocks(g){ return isLtd(g) ? lo_sessionBlocks(g) : md_sessionBlocks(g); }
+function playerCard(p,list){ return isLtd(G()) ? lo_playerCard(p,list) : md_playerCard(p,list); }
+
 /* ============================= NAVIGATION ============================= */
-function resetView(name){ return {name, sessOpen:false, partOpen:null, gameId:null, tab:'summary', stab:view.stab||'trends', player:null, metric:null, addingMetric:false}; }
+function resetView(name){ return {name, fmt:view.fmt||'all', sessOpen:false, partOpen:null, gameId:null, tab:'summary', stab:view.stab||'trends', player:null, metric:null, addingMetric:false}; }
 function go(name){ view = resetView(name); render(); window.scrollTo(0,0); }
 /* ---- Session breakdown ---- */
 /* Works out which innings each slot belongs to, in the order play happened
@@ -1072,11 +1513,14 @@ function cycleSessResult(key){
   const next = order[(order.indexOf(cur)+1) % order.length];
   setSessResult(key, next || cur);   // setSessResult clears when given the current value
   const cell = document.getElementById('cell-'+key);
-  if(cell) cell.querySelector('.sr-dot').setAttribute('aria-label', 'Session result: '+((G().sessionResults||{})[key]||'not set'));
+  if(cell) cell.querySelector('.sr-dot').setAttribute('aria-label', (isLtd(G())?'Block':'Session')+' result: '+((G().sessionResults||{})[key]||'not set'));
 }
 function sessResultTally(games){
   const t = {won:0, even:0, lost:0};
-  games.forEach(g=>Object.values(g.sessionResults||{}).forEach(v=>{ if(t[v]!==undefined) t[v]++; }));
+  games.forEach(g=>{ const f = fmtOf(g), r = g.sessionResults||{};
+    if(f==='multi') Object.entries(r).forEach(([k,v])=>{ if(/^d\d/.test(k) && t[v]!==undefined) t[v]++; });
+    else ['bat','bowl'].forEach(sd=>segs(g, sd).forEach(s=>{ const v = r[rkey(g,sd,s.key)]; if(t[v]!==undefined) t[v]++; }));
+  });
   return t;
 }
 function tallyInner(){
@@ -1085,7 +1529,7 @@ function tallyInner(){
   return `<span class="tally won">Won ${t.won}</span><span class="tally even">Even ${t.even}</span><span class="tally lost">Lost ${t.lost}</span>`;
 }
 function tallyText(t){ return `Won ${t.won}, even ${t.even}, lost ${t.lost}`; }
-function sessionPanel(g){
+function md_sessionPanel(g){
   const open = !!view.sessOpen;
   const innMap = slotInnings(g);
   const slot = (key,i)=>{ const sl=g.sessions[key][i]; const inn=innMap.get(sl); return `<div class="sess-slot" id="slot-${key}-${i}">
@@ -1115,7 +1559,7 @@ function setTab(t){ view.tab = t; view.addingMetric=false; render(); }
 function setSTab(t){ view.stab = t; view.player = null; render(); }
 function openPlayer(disc, key){ view.stab = disc; view.player = key; render(); window.scrollTo(0,0); }
 async function switchSeason(id){
-  db.activeSeasonId = id; view = resetView('dashboard'); view.stab='trends';
+  db.activeSeasonId = id; db.programSeason = db.programSeason||{}; db.programSeason[P()] = id; view = resetView('dashboard'); view.stab='trends';
   const s = S();
   if(s.stub){
     document.getElementById('app').innerHTML = `<div class="loading">Loading ${esc(s.name)}&hellip;</div>`;
@@ -1124,6 +1568,14 @@ async function switchSeason(id){
   writeLocal(); render();
 }
 
+async function switchProgram(p){
+  if(!PROGRAMS.includes(p) || p===P()) return;
+  db.activeProgram = p; view.fmt = 'all';
+  const ps = PS(); const pick = ps.find(x=>x.id===(db.programSeason||{})[p]) || ps.find(x=>!x.archived) || ps[0];
+  const v = view.name; await switchSeason(pick.id);
+  if(v==='season') go('season');
+  touchIndex();
+}
 /* ============================= EDIT ACTIONS ============================= */
 function setG(path, val){ const g=G(); if(!g) return; setPath(g, path, val); touchGame(g); live(); }
 function setItem(list, id, field, val){ const g=G(); const it=g[list].find(x=>x.id===id); if(!it) return; it[field]=val; touchGame(g); live(); }
@@ -1134,10 +1586,28 @@ function setResult(r){ const g=G(); g.result = g.result===r ? '' : r; touchGame(
 function setScorecard(v){ setG('scorecardUrl', v.trim()); }
 function openScorecard(){ const u=safeUrl(G().scorecardUrl); if(u) window.open(u,'_blank','noopener'); }
 
+
+/* Change a match's format, e.g. a one-day game cut to T20 by weather. Data entered for the other format is kept. */
+function setFormat(f){
+  const g = G(); if(!FORMATS[f] || fmtOf(g)===f) return;
+  g.format = f; view.metric = null; touchGame(g); render();
+  toast(`Format set to ${FORMATS[f].label}`);
+}
 function addMatch(){
+  const d = defaultFormat(P());
+  document.getElementById('modal-root').innerHTML = `
+  <div class="modal-back" onclick="if(event.target===this)closeModal()">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Match format" style="max-width:420px;">
+      <div class="modal-head"><div class="modal-title">${esc(progShort(P()))} match format</div><button class="icon-btn" onclick="closeModal()" aria-label="Close">×</button></div>
+      <div class="modal-body"><div class="fmt-pick">${[d, ...FORMAT_KEYS.filter(f=>f!==d)].map(f=>`<button onclick="createMatch('${f}')">${esc(FORMATS[f].label)}</button>`).join('')}</div></div>
+    </div>
+  </div>`;
+}
+function createMatch(f){
+  closeModal();
   const s = S();
   const round = s.games.reduce((m,g)=>Math.max(m, num(g.round)), 0) + 1;
-  const g = newGame(round); s.games.push(g);
+  const g = newGame(round, f); s.games.push(g);
   touchGame(g, s); touchSeason(s);
   openMatch(g.id);
 }
@@ -1152,7 +1622,7 @@ function deleteMatch(){
 function addItem(list){
   const g = G(), s = S();
   let item;
-  if(list==='batters') item = newBatter();
+  if(list==='batters'){ item = newBatter(); item.review = batTemplate(g); }
   else if(list==='bowlers') item = newBowler();
   else if(list==='partnerships') item = newPartnership();
   else if(list==='batMilestones') item = newMilestone(s.batMilestoneTypes[0]);
@@ -1224,14 +1694,14 @@ function addMetric(){
   const label = (document.getElementById('new-metric').value||'').trim(); if(!label) return;
   const s = S();
   if(s.bowlMetrics.some(m=>m.label.toLowerCase()===label.toLowerCase())){ toast('That KPI already exists'); return; }
-  const m = {id:uid(), label}; s.bowlMetrics.push(m);
+  const m = {id:uid(), label, formats:[fmtOf(G())]}; s.bowlMetrics.push(m);
   view.metric = m.id; view.addingMetric = false; touchSeason(s); render();
 }
 function renameMetric(id, label){ const s=S(); const m=s.bowlMetrics.find(x=>x.id===id); if(!m||!label.trim()) return; m.label=label.trim(); touchSeason(s); render(); }
 function removeMetric(id){
   const s = S(); const m = s.bowlMetrics.find(x=>x.id===id);
   if(!confirm(`Remove the "${m.label}" KPI from every match this season?`)) return;
-  s.bowlMetrics = s.bowlMetrics.filter(x=>x.id!==id); if(id==='boundaries') s.removedBoundaries = true; view.metric = null; touchSeason(s); render();
+  s.bowlMetrics = s.bowlMetrics.filter(x=>x.id!==id); s.removedKpis = s.removedKpis||[]; if(!s.removedKpis.includes(id)) s.removedKpis.push(id); view.metric = null; touchSeason(s); render();
 }
 function setMetricField(id, field, val){
   const g = G(); if(!g.bowlMetrics[id]) g.bowlMetrics[id] = {value:'', notes:''};
@@ -1240,16 +1710,16 @@ function setMetricField(id, field, val){
 
 function draftPlayerSummary(disc, key){
   const s = S();
-  const p = (disc==='bat' ? battingSeason(s) : bowlingSeason(s)).find(x=>x.key===key);
+  const p = (disc==='bat' ? battingSeason(SV()) : bowlingSeason(SV())).find(x=>x.key===key);
   if(!p) return;
   const cur = (s.playerNotes[key]||{})[disc]||'';
   if(cur.trim() && !confirm('Replace the current season summary with a fresh draft built from the match reviews?')) return;
   let head;
   if(disc==='bat'){
     const tons = [p.fifties?plural(p.fifties,'fifty','fifties'):'', p.hundreds?plural(p.hundreds,'hundred'):''].filter(Boolean).join(' and ');
-    head = `${p.name} batted ${plural(p.inns,'innings','innings')} for ${p.runs} runs${p.avg!=null?` at an average of ${f2(p.avg)}`:''}${p.sr!=null?`, striking at ${f1(p.sr)}`:''}. Highest score ${p.hsText}${tons?`, with ${tons}`:''}.`;
+    head = `${p.name} batted ${plural(p.inns,'innings','innings')} for ${p.runs} runs${p.avg!=null?` at an average of ${f2(p.avg)}`:''}${p.sr!=null?`, S/R ${f1(p.sr)}`:''}. Highest score ${p.hsText}${tons?`, with ${tons}`:''}.`;
   }else{
-    head = `${p.name} bowled ${p.overs} overs, taking ${plural(p.wkts,'wicket')}${p.avg!=null?` at ${f2(p.avg)}`:''} with an economy of ${f2(p.econ)}. Best figures ${p.bestText}, ${plural(p.maidens,'maiden')}.`;
+    head = `${p.name} bowled ${p.overs} overs, taking ${plural(p.wkts,'wicket')}${p.avg!=null?` at ${f2(p.avg)}`:''} with an E/R of ${f2(p.econ)}. Best figures ${p.bestText}, ${plural(p.maidens,'maiden')}.`;
   }
   const lines = p.entries.filter(e=>cleanReview(e.item.review)).map(e=>`${gameTitle(e.game)}: ${firstSentence(reviewBody(e.item.review)||cleanReview(e.item.review))}`);
   const draft = `${head}\n\nAcross the season:\n${lines.length?lines.join('\n'):'No match reviews recorded yet.'}\n\nStrengths:\n\nWork-ons:\n`;
@@ -1260,10 +1730,16 @@ function draftPlayerSummary(disc, key){
 const LIVE = {
   matchHero: ()=>matchHeroInner(G()),
   pName: arg=>{ const [list,id]=arg.split(':'); const p=G()[list].find(x=>x.id===id); return playerNameHtml(p, list); },
-  batFig: id=>{ const b=G().batters.find(x=>x.id===id); return b?esc(batFig(b)):''; },
-  bowlFig: id=>{ const b=G().bowlers.find(x=>x.id===id); return b?esc(bowlFig(b)):''; },
-  batSeason: id=>{ const b=G().batters.find(x=>x.id===id); if(!b||!pkey(b.name)) return ''; const p=battingSeason(S()).find(x=>x.key===pkey(b.name)); return p?`Season to date: <b>${p.runs} runs</b> from ${plural(p.inns,'innings','innings')}, average ${f2(p.avg)}, ${p.fifties} × 50+, ${p.hundreds} × 100+`:''; },
-  bowlSeason: id=>{ const b=G().bowlers.find(x=>x.id===id); if(!b||!pkey(b.name)) return ''; const p=bowlingSeason(S()).find(x=>x.key===pkey(b.name)); return p?`Season to date: <b>${plural(p.wkts,'wicket')}</b> from ${p.overs} overs, average ${f2(p.avg)}, economy ${f2(p.econ)}`:''; },
+  batFig: id=>{ const b=G().batters.find(x=>x.id===id); if(!b) return ''; return esc(batFig(b)); },
+  bowlFig: id=>{ const b=G().bowlers.find(x=>x.id===id); if(!b) return ''; return esc(bowlFig(b)); },
+  obCalc: a=>obCalcInner(a),
+  pKpi: a=>playerKpiInner(a),
+  teamKpi: k=>teamKpiInner(k),
+  obTotal: sd=>obTotalInner(sd),
+  catchPct: k=>catchPctFor(k),
+  fldTotal: ()=>fieldingRowsInner(),
+  batSeason: id=>{ const b=G().batters.find(x=>x.id===id); if(!b||!pkey(b.name)) return ''; const p=battingSeason(fmtSeason(S(), fmtOf(G()))).find(x=>x.key===pkey(b.name)); return p?`${esc(FORMATS[fmtOf(G())].short)} season to date: <b>${p.runs} runs</b> from ${plural(p.inns,'innings','innings')}, average ${f2(p.avg)}, S/R ${f1(p.sr)}, ${p.fifties} × 50+, ${p.hundreds} × 100+`:''; },
+  bowlSeason: id=>{ const b=G().bowlers.find(x=>x.id===id); if(!b||!pkey(b.name)) return ''; const p=bowlingSeason(fmtSeason(S(), fmtOf(G()))).find(x=>x.key===pkey(b.name)); return p?`${esc(FORMATS[fmtOf(G())].short)} season to date: <b>${plural(p.wkts,'wicket')}</b> from ${p.overs} overs, average ${f2(p.avg)}, E/R ${f2(p.econ)}`:''; },
   partSummary: ()=>partSummaryInner(),
   partGroup: inn=>esc(partGroupSummary(inn)),
   msSummary: kind=>msSummaryInner(kind),
@@ -1275,7 +1751,7 @@ const LIVE = {
   kpiTotal: id=>kpiTotalInner(id),
   kpiPct: a=>{ const [id,inn]=a.split(':'); const m=S().bowlMetrics.find(x=>x.id===id); return m ? kpiPct(G(), m, +inn) : ''; },
   exportPreview: ()=>blocksToHTML(matchReportBlocks(G(), S())),
-  seasonPreview: ()=>blocksToHTML(seasonReportBlocks(S())),
+  seasonPreview: ()=>blocksToHTML(seasonReportBlocks(SV())),
 };
 function live(){
   document.querySelectorAll('[data-live]').forEach(el=>{ const f=LIVE[el.dataset.live]; if(!f) return; const h=f(el.dataset.arg); if(h!==null && h!==undefined && el.innerHTML!==h) el.innerHTML = h; });
@@ -1290,7 +1766,7 @@ function render(){
   const app = document.getElementById('app');
   const s = S();
   document.getElementById('dl-players').innerHTML = playerNames(s).map(n=>`<option value="${esc(n)}">`).join('');
-  document.title = `${L('app.team')} Season Review`;
+  document.title = `${progName()} Season Review`;
   let html;
   if(view.name==='match' && G()) html = renderMatch();
   else if(view.name==='season') html = renderSeasonReview();
@@ -1298,7 +1774,7 @@ function render(){
   app.innerHTML = html + footer();
 }
 function heroBar(){
-  const act = db.seasons.filter(s=>!s.archived), arc = db.seasons.filter(s=>s.archived);
+  const act = PS().filter(s=>!s.archived), arc = PS().filter(s=>s.archived);
   const opt = s=>`<option value="${s.id}" ${s.id===db.activeSeasonId?'selected':''}>Season ${esc(s.name)}</option>`;
   return `<div class="hero-bar">
     <div class="brand">
@@ -1306,6 +1782,7 @@ function heroBar(){
       <div><div class="brand-org">${LE('app.org')}</div><div class="brand-sub">${LE('app.platform')}</div></div>
     </div>
     <div class="hero-controls">
+      <nav class="hero-nav" aria-label="Program">${PROGRAMS.map(p=>`<button class="${P()===p?'active':''}" onclick="switchProgram('${p}')">${progShort(p)}</button>`).join('')}</nav>
       <nav class="hero-nav" aria-label="Main">
         <button class="${view.name!=='season'?'active':''}" onclick="go('dashboard')">${LE('nav.matches')}</button>
         <button class="${view.name==='season'?'active':''}" onclick="go('season')">${LE('nav.season')}</button>
@@ -1336,7 +1813,7 @@ function renderDashboard(){
   <header class="hero">
     ${heroBar()}
     <div class="hero-main">
-      <div class="snap-name">${LE('app.team')}</div>
+      <div class="snap-name">${esc(progName())}</div>
       <div class="snap-role">Season ${esc(s.name)}${s.archived?' (archived)':''}</div>
       <div class="snap-grid">
         <div class="snap-card"><div class="snap-label">${LE('stat.played')}</div><div class="snap-value">${r.played}</div></div>
@@ -1372,6 +1849,7 @@ function matchCard(g){
   return `<button class="match-card ${g.result?'res-'+g.result.toLowerCase():''}" onclick="openMatch('${g.id}')">
     <div class="mc-top"><div class="mc-round">${LE('gs.round')}<b>${esc(g.round||'–')}</b></div>${resultChip(g.result)}</div>
     <div class="mc-opp">v ${esc(g.opponent||'Opponent TBC')}</div>
+    ${(fmtOf(g)!==defaultFormat(P()) || new Set(S().games.map(fmtOf)).size>1)?`<span class="fmt-chip">${esc(FORMATS[fmtOf(g)].short)}</span>`:''}
     ${meta?`<div class="mc-meta">${esc(meta)}</div>`:''}
     ${(sc.q||sc.o)?`<div class="mc-scores"><div><span>QLD</span>${esc(sc.q||'–')}</div><div><span>${esc(oppShort(g))}</span>${esc(sc.o||'–')}</div></div>`:''}
     ${(()=>{ const t=sessResultTally([g]); return (t.won+t.even+t.lost)?`<div class="tally-wrap" style="margin-top:6px"><span class="tally won">Won ${t.won}</span><span class="tally even">Even ${t.even}</span><span class="tally lost">Lost ${t.lost}</span></div>`:''; })()}
@@ -1380,7 +1858,7 @@ function matchCard(g){
 }
 
 /* ============================= MATCH VIEW ============================= */
-function matchHeroInner(g){
+function md_matchHeroInner(g){
   const o = g.opponent || 'Opponent';
   const meta = [g.venue, fmtDate(g.date)].filter(Boolean).join(', ');
   const url = safeUrl(g.scorecardUrl);
@@ -1395,10 +1873,11 @@ function matchHeroInner(g){
 }
 function renderMatch(){
   const g = G();
-  const tabs = [['summary',L('tab.summary')],['batting',L('tab.batting'),g.batters.length],['bowling',L('tab.bowling'),g.bowlers.length],['wtp',L('tab.wtp')],['export',L('tab.export')]];
+  const tabs = [['summary',L('tab.summary')],['batting',L('tab.batting'),g.batters.length],['bowling',L('tab.bowling'),g.bowlers.length],['fielding',L('tab.fielding')],['wtp',L('tab.wtp')],['export',L('tab.export')]];
   let body = '';
   if(view.tab==='batting') body = tabBatting(g);
   else if(view.tab==='bowling') body = tabBowling(g);
+  else if(view.tab==='fielding') body = tabFielding(g);
   else if(view.tab==='wtp') body = tabWtp(g);
   else if(view.tab==='export') body = tabExport(g);
   else body = tabSummary(g);
@@ -1433,6 +1912,10 @@ function tabSummary(g){
       <div><label class="field-label">${LE('gs.date')}</label><input type="date" value="${esc(g.date)}" onchange="setG('date',this.value)"></div>
       <div><label class="field-label">${LE('gs.result')}</label><div class="seg">${RESULTS.map(r=>`<button class="${g.result===r?'on':''}" onclick="setResult('${r}')">${r}</button>`).join('')}</div></div>
     </div>
+    <label class="field-label">Format</label>
+    <div class="seg">${FORMAT_KEYS.map(f=>`<button class="${fmtOf(g)===f?'on':''}" onclick="setFormat('${f}')">${esc(FORMATS[f].label)}</button>`).join('')}</div>
+    ${isLtd(g)?`<label class="field-label">Toss outcome</label>
+    <div class="seg">${[['bat','Batted first'],['bowl','Bowled first']].map(([v,l])=>`<button class="${g.battedFirst===v?'on':''}" onclick="setGR('battedFirst', G().battedFirst==='${v}'?'':'${v}')">${l}</button>`).join('')}</div>`:''}
     <label class="field-label">${LE('gs.scorecard')}</label>
     <div class="url-row">
       <input type="url" placeholder="https://" value="${esc(g.scorecardUrl)}" oninput="setScorecard(this.value)">
@@ -1446,6 +1929,7 @@ function tabSummary(g){
     <div class="panel-head"><div class="panel-title">${LE('gs.scores')}</div></div>
     <div data-live="innScores">${innScoresInner()}</div>
   </div>
+  ${isLtd(g)?standardsPanel(g):''}
 
   <div class="panel">
     <div class="panel-head"><div class="panel-title">${LE('gs.summary')}</div></div>
@@ -1463,7 +1947,6 @@ function tabSummary(g){
   </div>
 `;
 }
-
 /* ---- Shared: collapsible player list ---- */
 function playerList(g, list){
   const items = g[list];
@@ -1475,23 +1958,29 @@ function playerList(g, list){
   ${items.map(p=>playerCard(p, list)).join('')}
   <button class="add-btn" onclick="addItem('${list}')">+ Add ${list==='batters'?'batter':'bowler'}</button>`;
 }
-function playerCard(p, list){
+function md_playerCard(p, list){
   const bat = list==='batters', open = openPlayers.has(p.id);
-  if(bat && !(p.review||'').trim()) p.review = BAT_TEMPLATE;   // empty batter reviews start with the template
+  if(bat && !(p.review||'').trim()) p.review = batTemplate(G());   // empty batter reviews start with the template
   const fields = bat
     ? [1,2].map(n=>`<div class="inn-block"><div class="inn-label">${n===1?'1st':'2nd'} innings</div>
         <div class="inn-fields bat">
           <div><div class="mini-label">Runs</div><input type="number" min="0" inputmode="numeric" value="${esc(p['i'+n+'r'])}" oninput="setItem('batters','${p.id}','i${n}r',this.value)"></div>
           <div><div class="mini-label">Balls</div><input type="number" min="0" inputmode="numeric" value="${esc(p['i'+n+'b'])}" oninput="setItem('batters','${p.id}','i${n}b',this.value)"></div>
+          ${[['f','4s'],['s','6s'],['d','Dots']].map(([k,l])=>`<div><div class="mini-label">${l}</div><input type="number" min="0" inputmode="numeric" value="${esc(p['i'+n+k])}" oninput="setItem('batters','${p.id}','i${n}${k}',this.value)"></div>`).join('')}
           <label class="no-toggle"><input type="checkbox" ${p['i'+n+'no']?'checked':''} onchange="setItem('batters','${p.id}','i${n}no',this.checked)">Not out</label>
-        </div></div>`).join('')
+        </div>${playerKpiHtml(p,'batters',n)}</div>`).join('')
     : [1,2].map(n=>`<div class="inn-block"><div class="inn-label">${n===1?'1st':'2nd'} innings</div>
         <div class="inn-fields bowl">
           <div><div class="mini-label">Overs</div><input type="text" inputmode="decimal" value="${esc(p['i'+n+'o'])}" oninput="setItem('bowlers','${p.id}','i${n}o',this.value)"></div>
           <div><div class="mini-label">Maidens</div><input type="number" min="0" value="${esc(p['i'+n+'m'])}" oninput="setItem('bowlers','${p.id}','i${n}m',this.value)"></div>
           <div><div class="mini-label">Runs</div><input type="number" min="0" value="${esc(p['i'+n+'r'])}" oninput="setItem('bowlers','${p.id}','i${n}r',this.value)"></div>
           <div><div class="mini-label">Wickets</div><input type="number" min="0" max="10" value="${esc(p['i'+n+'w'])}" oninput="setItem('bowlers','${p.id}','i${n}w',this.value)"></div>
-        </div></div>`).join('');
+          ${[['d','Dots'],['f','4s'],['s','6s']].map(([k,l])=>`<div><div class="mini-label">${l}</div><input type="number" min="0" inputmode="numeric" value="${esc(p['i'+n+k])}" oninput="setItem('bowlers','${p.id}','i${n}${k}',this.value)"></div>`).join('')}
+        </div>${playerKpiHtml(p,'bowlers',n)}</div>`).join('');
+  return playerShell(p, list, open, `<div class="pc-fig" data-live="${bat?'batFig':'bowlFig'}" data-arg="${p.id}">${LIVE[bat?'batFig':'bowlFig'](p.id)}</div><div class="inn-grid">${fields}</div>`);
+}
+function playerShell(p, list, open, figHtml){
+  const bat = list==='batters';
   return `
   <div class="player-card ${open?'open':''}" id="pc-${p.id}">
     <button class="pc-toggle" aria-expanded="${open}" onclick="togglePlayer('${p.id}')">
@@ -1503,36 +1992,34 @@ function playerCard(p, list){
           <input type="text" data-name="${p.id}" list="dl-players" value="${esc(p.name)}" oninput="setItem('${list}','${p.id}','name',this.value)"></div>
         <button class="tool-btn danger" onclick="removeItem('${list}','${p.id}')">Remove</button>
       </div>
-      ${bat?`<div class="pc-fig" data-live="batFig" data-arg="${p.id}">${esc(bat?batFig(p):bowlFig(p))}</div>`:''}
-      <div class="inn-grid">${fields}</div>
+      ${figHtml}
       <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;">
         <label class="field-label">${LE((bat?'bat':'bowl')+'.review')}</label>
-        ${bat && !/dismissals/i.test(p.review||'') ? `<button class="tool-btn" style="margin-bottom:6px;" onclick="addDismissalTemplate('${p.id}')">Add dismissals lines</button>` : ''}
+        ${bat && !/dismissal/i.test(p.review||'') ? `<button class="tool-btn" style="margin-bottom:6px;" onclick="addDismissalTemplate('${p.id}')">${isLtd(G())?'Add dismissal line':'Add dismissals lines'}</button>` : ''}
       </div>
       <textarea class="tall" oninput="setItem('${list}','${p.id}','review',this.value)">${esc(p.review)}</textarea>
       <div class="att-box">
         <div class="mini-label">Attached reviews</div>
         ${(p.files||[]).map(f=>`<div class="att-row"><a class="att-link" href="${esc(f.url)}" target="_blank" rel="noopener">${fileIcon()}${esc(f.label)}</a><button class="kpi-x" onclick="removePlayerFile('${list}','${p.id}','${f.id}')" aria-label="Remove ${esc(f.label)}">×</button></div>`).join('')}
-        <div class="att-add"><input type="url" id="fu-${p.id}" placeholder="Link" onkeydown="if(event.key==='Enter')addPlayerFile('${list}','${p.id}')"><button class="tool-btn" onclick="addPlayerFile('${list}','${p.id}')">Attach</button></div>
+        <div class="att-add"><input type="url" id="fu-${p.id}" placeholder="Link" onkeydown="if(event.key==='Enter')addPlayerFile('${list}','${p.id}')"><button class="tool-btn" onclick="addPlayerFile('${list}','${p.id}')">Attach</button><button class="tool-btn" onclick="openCombine('${list}','${p.id}')">Combine PDFs</button></div>
       </div>
       <div class="pc-season" data-live="${bat?'batSeason':'bowlSeason'}" data-arg="${p.id}">${LIVE[bat?'batSeason':'bowlSeason'](p.id)}</div>
     </div>
   </div>`;
 }
-
 /* ---- Shared: milestones ---- */
 function milestonePanel(g, kind){
   const s = S(), types = kind==='bat' ? s.batMilestoneTypes : s.bowlMilestoneTypes;
   const list = kind==='bat' ? 'batMilestones' : 'bowlMilestones';
-  const rows = g[list];
+  const rows = g[list], ltd = isLtd(g);
   return `<div class="panel">
     <div class="panel-head"><div class="panel-title">${LE(kind+'.milestones')}</div></div>
-    ${rows.length ? `<div class="grid-row ms-row head-row"><div class="row-head">Player</div><div class="row-head">Milestone</div><div class="row-head">${kind==='bat'?'Score':'Figures'}</div><div class="row-head">Innings</div><div></div></div>` : ''}
-    ${rows.map(m=>`<div class="grid-row ms-row">
+    ${rows.length ? `<div class="grid-row ms-row head-row${ltd?' ltd':''}"><div class="row-head">Player</div><div class="row-head">Milestone</div><div class="row-head">${kind==='bat'?'Score':'Figures'}</div>${ltd?'':'<div class="row-head">Innings</div>'}<div></div></div>` : ''}
+    ${rows.map(m=>`<div class="grid-row ms-row${ltd?' ltd':''}">
       <input type="text" list="dl-players" placeholder="Player" value="${esc(m.player)}" oninput="setItem('${list}','${m.id}','player',this.value)">
       <select onchange="setItem('${list}','${m.id}','type',this.value);live()">${types.map(t=>`<option ${m.type===t?'selected':''}>${esc(t)}</option>`).join('')}${m.type&&!types.includes(m.type)?`<option selected>${esc(m.type)}</option>`:''}</select>
       <input type="text" value="${esc(m.detail)}" oninput="setItem('${list}','${m.id}','detail',this.value)">
-      <select onchange="setItem('${list}','${m.id}','innings',this.value)">${INNINGS_OPTS.map(([v,l])=>`<option value="${v}" ${m.innings===v?'selected':''}>${l}</option>`).join('')}</select>
+      ${ltd?'':`<select onchange="setItem('${list}','${m.id}','innings',this.value)">${INNINGS_OPTS.map(([v,l])=>`<option value="${v}" ${m.innings===v?'selected':''}>${l}</option>`).join('')}</select>`}
       <button class="icon-btn danger" onclick="removeItem('${list}','${m.id}')" aria-label="Remove milestone">×</button>
     </div>`).join('')}
     <button class="add-btn" onclick="addItem('${list}')">+ Add milestone</button>
@@ -1552,17 +2039,64 @@ function msSummaryInner(kind){
   return `<div class="stat-strip">${m.map((x,i)=>`<div class="stat-box"><div class="v">${x.count} <small>/ ${t[i].count}</small></div><div class="l">${esc(x.type)}, match / season</div></div>`).join('')}</div>`;
 }
 
+
+/* ---- KPI tiles: each player's innings, and the team's ---- */
+function kpiVals(kind, a){
+  const x = rateOut(a);
+  return kind==='bat'
+    ? [['S/R', x.sr!=null?f1(x.sr):'–'], ['Dot %', x.dotPct], ['4s/6s %', x.bndPct], ['Balls per boundary', x.bpb]]
+    : [['E/R', x.er!=null?f2(x.er):'–'], ['Dot %', x.dotPct], ['4s/6s %', x.bndPct], ['Balls per boundary', x.bpb]];
+}
+function kpiTiles(vals){ return vals.map(([l,v])=>`<div class="kt"><div class="kt-v">${v}</div><div class="kt-l">${l}</div></div>`).join(''); }
+/* one innings of one player: arg "batters:id:1" */
+function playerKpiInner(arg){
+  const [list, id, n] = arg.split(':'); const p = G()[list].find(x=>x.id===id); if(!p) return '';
+  const inn = (list==='batters' ? batInns(p) : bowlInns(p));
+  const one = list==='batters'
+    ? [{r:p['i'+n+'r'], b:p['i'+n+'b'], d:p['i'+n+'d'], f:p['i'+n+'f'], s:p['i'+n+'s']}]
+    : [{r:p['i'+n+'r'], b:has(p['i'+n+'o'])?String(oversToBalls(p['i'+n+'o'])):'', d:p['i'+n+'d'], f:p['i'+n+'f'], s:p['i'+n+'s']}];
+  return kpiTiles(kpiVals(list==='batters'?'bat':'bowl', rateSums(one)));
+}
+function playerKpiHtml(p, list, n){ return `<div class="kt-row" data-live="pKpi" data-arg="${list}:${p.id}:${n}">${playerKpiInner(`${list}:${p.id}:${n}`)}</div>`; }
+/* team: every batter's (or bowler's) figures for one innings (1, 2) or the match (0) */
+function teamSums(games, kind, inn){
+  const a = rateSums([]), list = kind==='bat' ? 'batters' : 'bowlers';
+  games.forEach(g=>g[list].forEach(p=>{
+    const all = kind==='bat' ? batInns(p) : bowlInns(p);
+    const pick = inn ? [1,2].filter(n=>n===inn) : [1,2];
+    pick.forEach(n=>{ const x = kind==='bat'
+      ? {r:p['i'+n+'r'], b:p['i'+n+'b'], d:p['i'+n+'d'], f:p['i'+n+'f'], s:p['i'+n+'s']}
+      : {r:p['i'+n+'r'], b:has(p['i'+n+'o'])?String(oversToBalls(p['i'+n+'o'])):'', d:p['i'+n+'d'], f:p['i'+n+'f'], s:p['i'+n+'s']};
+      if(kind==='bat' ? has(x.r) : has(x.b)) rateSums([x], a); });
+  }));
+  return a;
+}
+function teamKpiInner(kind){
+  const g = G(), multi = !isLtd(g);
+  const rows = multi ? [['Match',0],['1st innings',1],['2nd innings',2]] : [['',0]];
+  return rows.map(([l,inn])=>{ const a = teamSums([g], kind, inn); if(inn && !a.srBalls && !a.dotBalls && !a.bnds) return '';
+    return `${l?`<div class="kt-cap">${l}</div>`:''}<div class="kt-row team">${kpiTiles(kpiVals(kind, a))}</div>`; }).join('');
+}
+function teamKpiPanel(kind){
+  return `<div class="kpi-head">Team ${kind==='bat'?'batting':'bowling'} KPIs</div><div data-live="teamKpi" data-arg="${kind}">${teamKpiInner(kind)}</div>`;
+}
+function teamKpiText(g, kind){
+  const v = kpiVals(kind, teamSums([g], kind, 0)).filter(([,x])=>x!=='–');
+  return v.map(([l,x])=>`${l} ${x}`).join(', ');
+}
+
 /* ---- Tab 2: Batting ---- */
 function tabBatting(g){
   return `
   <div class="panel">
     <div class="panel-head"><div class="panel-title">${LE('bat.summary')}</div></div>
     <textarea class="xl" oninput="setG('battingSummary',this.value)">${esc(g.battingSummary)}</textarea>
+    ${teamKpiPanel('bat')}
   </div>
   ${playerList(g, 'batters')}
   <div class="panel" style="margin-top:22px;">
     <div class="panel-head"><div class="panel-title">${LE('bat.partnerships')}</div></div>
-    ${['1','2'].map(inn=>partGroup(g, inn)).join('')}
+    ${isLtd(g) ? partFlat(g) : ['1','2'].map(inn=>partGroup(g, inn)).join('')}
     <div data-live="partSummary" style="margin-top:14px;">${partSummaryInner()}</div>
   </div>
   ${milestonePanel(g, 'bat')}`;
@@ -1625,17 +2159,18 @@ function partSummaryInner(){
 
 /* ---- Tab 3: Bowling ---- */
 function tabBowling(g){
-  const s = S(), ms = s.bowlMetrics;
+  const s = S(), ms = s.bowlMetrics.filter(m=>kpiFor(m, g)), ltd = isLtd(g);
   return `
   <div class="panel">
     <div class="panel-head"><div class="panel-title">${LE('bowl.summary')}</div></div>
     <textarea class="xl" oninput="setG('bowlingSummary',this.value)">${esc(g.bowlingSummary)}</textarea>
+    ${teamKpiPanel('bowl')}
     <div class="kpi-head">KPIs</div>
     <div class="kpi-list">
-      ${ms.length?`<div class="kpi-row kpi-hdr"><span></span><span>1st inns</span><span>2nd inns</span><span>Total</span><span></span></div>`:''}
+      ${ms.length && !ltd?`<div class="kpi-row kpi-hdr"><span></span><span>1st inns</span><span>2nd inns</span><span>Total</span><span></span></div>`:''}
       ${ms.map(m=>`<div class="kpi-row">
         <span class="kpi-label">${esc(m.label)}${m.kind==='boundaries'?'<small class="kpi-sub">4s and 6s conceded</small>':''}</span>
-        <span class="kpi-cells" ${m.id==='maidens'?'data-live="kpiMaidens"':''}>${kpiCellsInner(m.id)}</span>
+        <span class="kpi-cells${ltd?' ltd':''}" ${m.id==='maidens'?'data-live="kpiMaidens"':''}>${kpiCellsInner(m.id)}</span>
         <button class="kpi-x" onclick="removeMetric('${m.id}')" aria-label="Remove ${esc(m.label)}">×</button>
       </div>`).join('')}
     </div>
@@ -1645,10 +2180,74 @@ function tabBowling(g){
   <div style="margin-top:22px;">${milestonePanel(g, 'bowl')}</div>`;
 }
 
-/* ---- Tab 4: Way to Play ---- */
+
+/* ---- Tab 4: Fielding ---- */
+function fieldingTotals(games){
+  const t = {taken:0, dropped:0, ro:0, dh:0, bs:0, n:0, grades:{}};
+  CATCH_GRADES.forEach(([k])=>t.grades[k]={taken:0, dropped:0});
+  games.forEach(g=>{ const f = g.fielding||{}; let any = false;
+    CATCH_GRADES.forEach(([k])=>{ if(has(f[k+'t'])||has(f[k+'d'])) any = true; t.grades[k].taken += num(f[k+'t']); t.grades[k].dropped += num(f[k+'d']); t.taken += num(f[k+'t']); t.dropped += num(f[k+'d']); });
+    ['ro','dh','bs'].forEach(k=>{ if(has(f[k])) any = true; t[k] += num(f[k]); });
+    if(any) t.n++; });
+  return t;
+}
+function catchPct(taken, dropped){ return taken+dropped ? Math.round(taken/(taken+dropped)*100)+'%' : '–'; }
+function fieldingRowsInner(){
+  const t = fieldingTotals([G()]);
+  return `<div class="fl ft">Total</div><div class="fc ft">${t.taken}</div><div class="fc ft">${t.dropped}</div><div class="fc ft">${catchPct(t.taken, t.dropped)}</div>`;
+}
+function setFld(k, v){ const g=G(); g.fielding[k]=v; touchGame(g); live(); }
+function tabFielding(g){
+  const f = g.fielding;
+  const inp = (k, label)=>`<input type="number" min="0" inputmode="numeric" aria-label="${label}" value="${esc(f[k])}" oninput="setFld('${k}',this.value)">`;
+  return `
+  <div class="panel">
+    <div class="panel-head"><div class="panel-title">Catching</div></div>
+    <div class="fld-grid">
+      <div></div><div class="fh">Taken</div><div class="fh">Dropped</div><div class="fh">Catch %</div>
+      ${CATCH_GRADES.map(([k,l])=>`<div class="fl">${l}</div>${inp(k+'t', l+' taken')}${inp(k+'d', l+' dropped')}<div class="fc" data-live="catchPct" data-arg="${k}">${catchPctFor(k)}</div>`).join('')}
+      <span style="display:contents" data-live="fldTotal">${fieldingRowsInner()}</span>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><div class="panel-title">Run outs and ground fielding</div></div>
+    <div class="fld-other">
+      <div><div class="mini-label">Run outs</div>${inp('ro','Run outs')}</div>
+      <div><div class="mini-label">Direct hits</div>${inp('dh','Direct hits')}</div>
+      <div><div class="mini-label">Boundary saves</div>${inp('bs','Boundary saves')}</div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><div class="panel-title">Fielding summary</div></div>
+    <textarea class="xl" oninput="setG('fielding.notes',this.value)">${esc(f.notes)}</textarea>
+  </div>`;
+}
+function catchPctFor(k){ const f = G().fielding; return catchPct(num(f[k+'t']), num(f[k+'d'])); }
+function fieldingHasData(t){ return t.n>0; }
+function fieldingText(t){
+  return [`Catches ${t.taken}/${t.taken+t.dropped} (${catchPct(t.taken,t.dropped)})`, t.ro?plural(t.ro,'run out'):'', t.dh?plural(t.dh,'direct hit'):'', t.bs?plural(t.bs,'boundary save'):''].filter(Boolean).join(', ');
+}
+function fieldingTable(t){
+  const rows = CATCH_GRADES.map(([k,l])=>[l, t.grades[k].taken, t.grades[k].dropped, catchPct(t.grades[k].taken, t.grades[k].dropped)]);
+  rows.push(['Total', t.taken, t.dropped, catchPct(t.taken, t.dropped)]);
+  return {t:'table', head:['Catches','Taken','Dropped','Catch %'], rows, totals:1};
+}
+function fieldingBlocks(g, withHead){
+  const t = fieldingTotals([g]), notes = (g.fielding.notes||'').trim();
+  if(!fieldingHasData(t) && !notes) return [];
+  const b = withHead ? [{t:'h', text:L('tab.fielding')}] : [];
+  if(fieldingHasData(t)){
+    if(t.taken+t.dropped) b.push(fieldingTable(t));
+    b.push({t:'kv', rows:[['Run outs', t.ro], ['Direct hits', t.dh], ['Boundary saves', t.bs]]});
+  }
+  if(notes) b.push({t:'p', text:notes});
+  return b;
+}
+
+/* ---- Tab 5: Way to Play ---- */
 function tabWtp(g){
   return `
-  ${WTP_KEYS.map(k=>{ const e=g.wtp[k]; const d=L('wtp.'+k+'.d'); return `
+  ${WTP_KEYS.map(k=>{ const e=g.wtp[k]; const d=wtpDesc(k); return `
   <div class="wtp-block">
     <div class="wtp-head"><div><div class="wtp-name">${esc(wtpLabel(k))}</div>${d.trim()?`<div class="wtp-desc">${esc(d)}</div>`:''}</div>
       <div class="wtp-score">${e.rating?`${e.rating} of 5, ${esc(wtpScale(e.rating))}`:''}</div></div>
@@ -1684,25 +2283,37 @@ function tabExport(g){
   </div>
   <div class="report-paper" data-live="exportPreview">${LIVE.exportPreview()}</div>`;
 }
+function fileTag(){ return 'QLD-'+progShort(P()).replace(/\s+/g,'-'); }
 function copyMatch(plain){ copyReport(matchReportBlocks(G(),S()), plain); }
-function downloadMatch(){ const g=G(); downloadReport(matchReportBlocks(g,S()), `QLD-2nd-XI-R${g.round}-v-${g.opponent||'TBC'}-${exportMode==='brief'?'Coaches-brief':'Full-review'}`); }
+function downloadMatch(){ const g=G(); downloadReport(matchReportBlocks(g,S()), `${fileTag()}-R${g.round}-v-${g.opponent||'TBC'}-${exportMode==='brief'?'Coaches-brief':'Full-review'}`); }
 
 /* ============================= SEASON REVIEW ============================= */
+/* The season, optionally narrowed to one format (Season review filter). */
+function fmtSeason(s, f){ return (!f || f==='all') ? s : {...s, games: s.games.filter(g=>fmtOf(g)===f)}; }
+function SV(){ const s = S(); return fmtSeason(s, seasonFormats(s).includes(view.fmt) ? view.fmt : 'all'); }
+function seasonFormats(s){ return FORMAT_KEYS.filter(f=>s.games.some(g=>fmtOf(g)===f)); }
+function setSeasonFmt(f){ view.fmt = f; view.player = null; render(); }
+function fmtFilterBar(s){
+  const fs = seasonFormats(s); if(fs.length<2) return '';
+  const cur = fs.includes(view.fmt) ? view.fmt : 'all';
+  return `<div class="seg" role="radiogroup" aria-label="Format" style="margin:0 0 16px;">${['all',...fs].map(f=>`<button class="${cur===f?'on':''}" role="radio" aria-checked="${cur===f}" onclick="setSeasonFmt('${f}')">${f==='all'?'All formats':esc(FORMATS[f].short)}</button>`).join('')}</div>`;
+}
+
 function renderSeasonReview(){
-  const s = S(), r = seasonRecordCounts(s);
+  const s = SV(), r = seasonRecordCounts(s);
   const bat = battingSeason(s), bowl = bowlingSeason(s);
   const tabs = [['trends',L('sr.trends')],['bat',L('sr.bat'),bat.length],['bowl',L('sr.bowl'),bowl.length],['report',L('sr.report')]];
   let body;
-  if(view.stab==='bat') body = view.player ? playerDetail('bat', view.player) : playerTable('bat', bat);
-  else if(view.stab==='bowl') body = view.player ? playerDetail('bowl', view.player) : playerTable('bowl', bowl);
-  else if(view.stab==='report') body = seasonReportTab(s);
+  if(view.stab==='bat') body = view.player ? playerDetail('bat', view.player) : playerTable('bat', bat, s);
+  else if(view.stab==='bowl') body = view.player ? playerDetail('bowl', view.player) : playerTable('bowl', bowl, s);
+  else if(view.stab==='report') body = seasonReportTab(S());
   else body = trendsTab(s);
   return `
   <header class="hero">
     ${heroBar()}
     <div class="hero-main">
       <div class="snap-name">${LE('nav.season')}</div>
-      <div class="snap-role">${LE('app.team')}, Season ${esc(s.name)}</div>
+      <div class="snap-role">${esc(progName())}, Season ${esc(s.name)}${(SV()!==S())?`, ${esc(FORMATS[view.fmt].short)}`:''}</div>
       <div class="snap-grid">
         <div class="snap-card"><div class="snap-label">${LE('stat.played')}</div><div class="snap-value">${r.played}</div></div>
         <div class="snap-card"><div class="snap-label">Won, lost, drawn</div><div class="snap-value">${r.Win}–${r.Loss}–${r.Draw+r.Tie}</div></div>
@@ -1712,27 +2323,31 @@ function renderSeasonReview(){
     </div>
   </header>
   <div class="tabbar-wrap"><div class="tabbar" role="tablist">${tabs.map(([k,l,c])=>`<button class="tab ${view.stab===k?'active':''}" onclick="setSTab('${k}')">${esc(l)}${c?`<span class="count">${c}</span>`:''}</button>`).join('')}</div></div>
+  ${fmtFilterBar(S())}
   ${body}`;
 }
 function seasonSessionRows(s){
+  s = {...s, games: s.games.filter(g=>!isLtd(g))};
   const rows = SESSIONS.map(n=>{
     const t = {q:{r:0,w:0,n:0,b:0}, o:{r:0,w:0,n:0,b:0}};
     s.games.forEach(g=>{ const x = sessTotals(g, (d,nn)=>nn===n); ['q','o'].forEach(k=>{ t[k].r+=x[k].r; t[k].w+=x[k].w; t[k].n+=x[k].n; t[k].b+=x[k].b; }); });
     const res = {won:0, even:0, lost:0};
-    s.games.forEach(g=>Object.entries(g.sessionResults||{}).forEach(([k,v])=>{ if(k.endsWith('s'+n) && res[v]!==undefined) res[v]++; }));
+    s.games.forEach(g=>Object.entries(g.sessionResults||{}).forEach(([k,v])=>{ if(/^d\d/.test(k) && k.endsWith('s'+n) && res[v]!==undefined) res[v]++; }));
     return {n, ...t, res};
   });
   return rows.some(r=>r.q.n||r.o.n||r.res.won||r.res.even||r.res.lost) ? rows : null;
 }
 function rpw(x){ return x.w ? f1(x.r/x.w) : (x.n?String(x.r):'–'); }
 function rpo(x){ return x.b ? f2(x.r/(x.b/6)) : '–'; }
-function seasonSessionPanel(s){
+function seasonSessionPanel(s){ return md_seasonSessionPanel(s) + ['od','t20'].map(f=>{ const x = ltdSeasonRows(s.games, f); return x ? ltdSeasonPanel(x) : ''; }).join(''); }
+function md_seasonSessionPanel(s){
   const rows = seasonSessionRows(s); if(!rows) return '';
+  const mixed = s.games.some(isLtd);
   return `<div class="panel">
-    <div class="panel-head"><div class="panel-title">${LE('gs.sessions')}</div><span class="tally-wrap">${(()=>{ const t=sessResultTally(s.games); return (t.won+t.even+t.lost)?`<span class="tally won">Won ${t.won}</span><span class="tally even">Even ${t.even}</span><span class="tally lost">Lost ${t.lost}</span>`:''; })()}</span></div>
+    <div class="panel-head"><div class="panel-title">${LE('gs.sessions')}${mixed?', Multi-day':''}</div><span class="tally-wrap">${(()=>{ const t=sessResultTally(s.games.filter(g=>!isLtd(g))); return (t.won+t.even+t.lost)?`<span class="tally won">Won ${t.won}</span><span class="tally even">Even ${t.even}</span><span class="tally lost">Lost ${t.lost}</span>`:''; })()}</span></div>
     <div class="table-wrap"><table class="stat-table">
-      <thead><tr><th></th><th>Won</th><th>Even</th><th>Lost</th><th>Overs batted</th><th>Runs scored</th><th>Wkts lost</th><th>Run rate</th><th>Overs bowled</th><th>Runs conceded</th><th>Wkts taken</th><th>Economy</th></tr></thead>
-      <tbody>${rows.map(r=>`<tr><td class="name">Session ${r.n}</td><td style="color:var(--green);font-weight:700">${r.res.won}</td><td style="color:#8A6418;font-weight:700">${r.res.even}</td><td style="color:var(--red);font-weight:700">${r.res.lost}</td><td>${r.q.b?ballsToOvers(r.q.b):'–'}</td><td>${r.q.r}</td><td>${r.q.w}</td><td>${rpo(r.q)}</td><td>${r.o.b?ballsToOvers(r.o.b):'–'}</td><td>${r.o.r}</td><td>${r.o.w}</td><td>${rpo(r.o)}</td></tr>`).join('')}</tbody>
+      <thead><tr><th></th><th>Won</th><th>Even</th><th>Lost</th><th>Overs batted</th><th>Runs scored</th><th>Wkts lost</th><th>S/R</th><th>Overs bowled</th><th>Runs conceded</th><th>Wkts taken</th><th>E/R</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr><td class="name">Session ${r.n}</td><td style="color:var(--green);font-weight:700">${r.res.won}</td><td style="color:#8A6418;font-weight:700">${r.res.even}</td><td style="color:var(--red);font-weight:700">${r.res.lost}</td><td>${r.q.b?ballsToOvers(r.q.b):'–'}</td><td>${r.q.r}</td><td>${r.q.w}</td><td>${srOf(r.q)}</td><td>${r.o.b?ballsToOvers(r.o.b):'–'}</td><td>${r.o.r}</td><td>${r.o.w}</td><td>${erOf(r.o)}</td></tr>`).join('')}</tbody>
     </table></div>
   </div>`;
 }
@@ -1764,6 +2379,13 @@ function trendsTab(s){
   </div>
 
   <div class="two-col">
+    <div class="panel"><div class="panel-head"><div class="panel-title">Team batting KPIs</div></div><div class="kt-row team">${kpiTiles(kpiVals('bat', teamSums(s.games,'bat',0)))}</div></div>
+    <div class="panel"><div class="panel-head"><div class="panel-title">Team bowling KPIs</div></div><div class="kt-row team">${kpiTiles(kpiVals('bowl', teamSums(s.games,'bowl',0)))}</div></div>
+  </div>
+  ${(()=>{ const ft = fieldingTotals(s.games); if(!fieldingHasData(ft)) return '';
+    return `<div class="panel"><div class="panel-head"><div class="panel-title">${LE('tab.fielding')}</div></div>
+      <div class="stat-strip">${box(catchPct(ft.taken, ft.dropped), `Catches taken (${ft.taken} of ${ft.taken+ft.dropped})`)}${CATCH_GRADES.map(([k,l])=>box(catchPct(ft.grades[k].taken, ft.grades[k].dropped), `${l} (${ft.grades[k].taken} of ${ft.grades[k].taken+ft.grades[k].dropped})`)).join('')}${box(ft.ro,'Run outs')}${box(ft.dh,'Direct hits')}${box(ft.bs,'Boundary saves')}</div></div>`; })()}
+  <div class="two-col">
     <div class="panel">
       <div class="panel-head"><div class="panel-title">${LE('bat.partnerships')}</div></div>
       <div class="stat-strip">${box(parts.fifty,'50 run stands')}${box(parts.hundred,'100 run stands')}${box(parts.oneFifty,'150+ stands')}</div>
@@ -1784,16 +2406,17 @@ function trendsTab(s){
     </div>
   </div>`;
 }
-function playerTable(disc, rows){
+function playerTable(disc, rows, s){
+  s = s || SV();
   if(!rows.length) return `<div class="empty-state"><div class="empty-title">No ${disc==='bat'?'batters':'bowlers'} yet</div></div>`;
   const notes = S().playerNotes;
   const summ = k=>((notes[k]||{})[disc]||'').trim() ? 'Written' : '–';
   const head = disc==='bat'
-    ? ['Player','Inns','NO','Runs','Balls','Avg','SR','HS','50+','100+','Reviews',L('sr.playerSummary')]
-    : ['Player','Overs','Mdns','Runs','Wkts','Avg','Econ','Best','Reviews',L('sr.playerSummary')];
+    ? ['Player','Inns','NO','Runs','Balls','Avg','S/R','HS','Dot %','4s/6s %','BPB','50+','100+','Reviews',L('sr.playerSummary')]
+    : ['Player','Overs','Mdns','Runs','Wkts','Avg','E/R','Best','Dot %','4s/6s %','BPB','Reviews',L('sr.playerSummary')];
   const row = p=> disc==='bat'
-    ? [p.inns,p.no,p.runs,p.balls,f2(p.avg),f1(p.sr),p.hsText,p.fifties,p.hundreds,p.reviews]
-    : [p.overs,p.maidens,p.runs,p.wkts,f2(p.avg),f2(p.econ),p.bestText,p.reviews];
+    ? [p.inns,p.no,p.runs,p.balls,f2(p.avg),f1(p.sr),p.hsText,p.dotPct,p.bndPct,p.bpb,p.fifties,p.hundreds,p.reviews]
+    : [p.overs,p.maidens,p.runs,p.wkts,f2(p.avg),f2(p.econ),p.bestText,p.dotPct,p.bndPct,p.bpb,p.reviews];
   return `<div class="panel">
     <div class="table-wrap"><table class="stat-table">
       <thead><tr>${head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead>
@@ -1802,14 +2425,14 @@ function playerTable(disc, rows){
   </div>`;
 }
 function playerDetail(disc, key){
-  const s = S();
+  const s = SV();
   const all = disc==='bat'?battingSeason(s):bowlingSeason(s);
   const p = all.find(x=>x.key===key);
   if(!p){ view.player=null; return playerTable(disc, all); }
   const note = ((s.playerNotes[key]||{})[disc])||'';
   const stats = disc==='bat'
-    ? [['Innings',p.inns],['Runs',p.runs],['Average',f2(p.avg)],['Balls faced',p.balls],['Strike rate',f1(p.sr)],['High score',p.hsText],['50+',p.fifties],['100+',p.hundreds]]
-    : [['Overs',p.overs],['Wickets',p.wkts],['Average',f2(p.avg)],['Runs conceded',p.runs],['Maidens',p.maidens],['Economy',f2(p.econ)],['Best',p.bestText]];
+    ? [['Innings',p.inns],['Runs',p.runs],['Average',f2(p.avg)],['Balls faced',p.balls],['S/R',f1(p.sr)],['High score',p.hsText],['Dot ball %',p.dotPct],['4s/6s % of runs',p.bndPct],['Balls per boundary',p.bpb],['50+',p.fifties],['100+',p.hundreds]]
+    : [['Overs',p.overs],['Wickets',p.wkts],['Average',f2(p.avg)],['Runs conceded',p.runs],['Maidens',p.maidens],['E/R',f2(p.econ)],['Best',p.bestText],['Dot ball %',p.dotPct],['4s/6s % of runs',p.bndPct],['Balls per boundary',p.bpb]];
   return `
   <button class="tool-btn" style="margin-bottom:12px;display:inline-flex;align-items:center;gap:4px;" onclick="openPlayer('${disc}',null)">${backIcon()}All ${disc==='bat'?'batters':'bowlers'}</button>
   <div class="panel">
@@ -1825,7 +2448,7 @@ function playerDetail(disc, key){
     <div class="panel-head"><div class="panel-title">${LE('sr.matchReviews')}</div></div>
     ${p.entries.map(e=>`<div class="review-item">
       <div class="ri-head"><div class="ri-title">${esc(gameTitle(e.game))}</div>
-        <div style="display:flex;gap:14px;align-items:baseline;"><span class="ri-fig">${esc(disc==='bat'?batFig(e.item):bowlFig(e.item))}</span>
+        <div style="display:flex;gap:14px;align-items:baseline;"><span class="ri-fig">${esc(isLtd(e.game)?`${FORMATS[fmtOf(e.game)].short}: ${disc==='bat'?batFig(e.item):bowlFig(e.item)}`:(disc==='bat'?batFig(e.item):bowlFig(e.item)))}</span>
         <button class="link-btn" onclick="openMatch('${e.game.id}','${disc==='bat'?'batting':'bowling'}')">Edit</button></div></div>
       ${(e.item.files||[]).length?`<div class="att-inline">${filesHtml(e.item.files)}</div>`:''}
       <div class="ri-text ${cleanReview(e.item.review)?'':'empty'}">${esc(cleanReview(e.item.review)||'No review written.')}</div>
@@ -1841,10 +2464,10 @@ function seasonReportTab(s){
       <textarea class="xl" oninput="setS('coachReflections',this.value)">${esc(s.coachReflections)}</textarea></div>
   </div>
   <div class="export-bar">
-    <button class="primary-btn" onclick="copyReport(seasonReportBlocks(S()))">Copy for email</button>
-    <button class="ghost-btn" onclick="copyReport(seasonReportBlocks(S()),true)">Copy as plain text</button>
-    <button class="ghost-btn" onclick="downloadReport(seasonReportBlocks(S()),'QLD-2nd-XI-Season-Report-'+S().name)">Download HTML</button>
-    <button class="ghost-btn" onclick="printReport(seasonReportBlocks(S()))">Print or save PDF</button>
+    <button class="primary-btn" onclick="copyReport(seasonReportBlocks(SV()))">Copy for email</button>
+    <button class="ghost-btn" onclick="copyReport(seasonReportBlocks(SV()),true)">Copy as plain text</button>
+    <button class="ghost-btn" onclick="downloadReport(seasonReportBlocks(SV()),fileTag()+'-Season-Report-'+S().name)">Download HTML</button>
+    <button class="ghost-btn" onclick="printReport(seasonReportBlocks(SV()))">Print or save PDF</button>
   </div>
   <div class="report-paper" data-live="seasonPreview">${LIVE.seasonPreview()}</div>`;
 }
@@ -1889,9 +2512,16 @@ function trendSVG(games){
 
 /* ============================= REPORTS ============================= */
 /* Reports are built as simple blocks, then rendered to email HTML or plain text. */
-function msTableBlock(rows){
-  return {t:'table', head:['Player','Milestone','Detail','Innings'], rows:rows.map(m=>[m.player||'–', m.type||'–', m.detail||'–', inningsText(m.innings)])};
+function msTableBlock(rows, ltd){
+  return ltd ? {t:'table', head:['Player','Milestone','Detail'], rows:rows.map(m=>[m.player||'–', m.type||'–', m.detail||'–'])}
+    : {t:'table', head:['Player','Milestone','Detail','Innings'], rows:rows.map(m=>[m.player||'–', m.type||'–', m.detail||'–', inningsText(m.innings)])};
 }
+function partTableBlock(g, parts){
+  return isLtd(g) ? {t:'table', head:['Runs','Wicket','Batters'], rows:parts.map(p=>[p.runs, p.wicket||'–', p.batters||'–'])}
+    : {t:'table', head:['Runs','Wicket','Batters','Innings'], rows:parts.map(p=>[p.runs, p.wicket||'–', p.batters||'–', p.innings==='2'?'2nd inns':'1st inns'])};
+}
+function batMeta(g, x){ return [batFig(x), batRates(x)].filter(Boolean).join('   '); }
+function bowlMeta(g, x){ return [bowlFig(x), bowlRates(x)].filter(Boolean).join('   '); }
 /* Session breakdown laid out like the dressing-room sheet: days across, sessions down. */
 function innTotalsBlock(g){ return {t:'kv', rows:innCells(g).map(([l,x])=>[l, fmtWR(x)])}; }
 function sessionGridBlock(g){
@@ -1908,7 +2538,7 @@ function sessionGridBlock(g){
   rows.push(['Day total', ...days.map(d=>dayLines(g,d).map(l=>`${l.team} ${l.score}${l.overs?` (${l.overs})`:''} ${l.inn}`).join('\n')||'–')]);
   return {t:'table', head:['', ...days.map(d=>`Day ${d}`)], rows, left:true, totals:1};
 }
-function sessionBlocks(g){
+function md_sessionBlocks(g){
   const t = sessResultTally([g]), any = t.won+t.even+t.lost;
   if(!sessHasData(g) && !any) return [];
   return [sessionGridBlock(g), ...(any?[{t:'small', text:`Sessions: ${tallyText(t)}`}]:[])];
@@ -1919,35 +2549,42 @@ function matchReportBlocks(g, s, mode){
   const b = [];
   const o = g.opponent || 'Opponent';
   const url = safeUrl(g.scorecardUrl);
-  b.push({t:'title', text:`${L('gs.round')} ${g.round||'–'} v ${g.opponent||'Opponent TBC'}`, sub:`${L('app.team')}, Season ${s.name}. Full review`});
+  b.push({t:'title', text:`${L('gs.round')} ${g.round||'–'} v ${g.opponent||'Opponent TBC'}`, sub:`${progName()}, ${FORMATS[fmtOf(g)].label}, Season ${s.name}. Full review`});
   const kv = [[L('gs.result'),g.result||'Not recorded'],[L('gs.venue'),g.venue||'–'],[L('gs.date'),fmtDate(g.date)||'–'],
-    ['QLD innings',scoresLine(g).q||'–'],[`${o} innings`,scoresLine(g).o||'–']];
+    ...(isLtd(g) ? [['QLD',[scoresLine(g).q, innOvers(g,'q1')?`(${innOvers(g,'q1')} ov)`:''].filter(Boolean).join(' ')||'–'],[o,[scoresLine(g).o, innOvers(g,'o1')?`(${innOvers(g,'o1')} ov)`:''].filter(Boolean).join(' ')||'–'],
+      ['Toss outcome', g.battedFirst==='bat'?'Batted first':g.battedFirst==='bowl'?'Bowled first':'–']]
+    : [['QLD innings',scoresLine(g).q||'–'],[`${o} innings`,scoresLine(g).o||'–']])];
   if(url) kv.push([L('gs.scorecard'), {link:url}]);
   if(url) b.push({t:'button', text:'View full scorecard', href:url});
   b.push({t:'kv', rows:kv});
-  b.push({t:'h', text:L('gs.sessions')});
+  b.push({t:'h', text:L(isLtd(g)?'gs.overs':'gs.sessions')});
   const sb = sessionBlocks(g); if(sb.length) b.push(...sb); else b.push({t:'p', text:''});
+  if(isLtd(g)) b.push(...standardsBlocks(g));
   b.push({t:'h', text:L('gs.summary')}, {t:'p', text:g.summary});
   b.push({t:'h', text:L('gs.positives')}, {t:'p', text:g.positives});
   b.push({t:'h', text:L('gs.learnings')}, {t:'p', text:g.learnings});
 
   b.push({t:'h', text:L('tab.batting')});
   b.push({t:'sub', text:L('bat.summary')}, {t:'p', text:g.battingSummary});
+  if(teamKpiText(g,'bat')) b.push({t:'small', text:`Team batting KPIs: ${teamKpiText(g,'bat')}`});
   const bats = g.batters.filter(x=>(x.name||'').trim());
-  if(bats.length){ b.push({t:'sub', text:L('bat.players')}); bats.forEach(x=>{ b.push({t:'h3', text:x.name, meta:batFig(x)}, {t:'p', text:cleanReview(x.review)}); (x.files||[]).forEach(f=>b.push({t:'linkline', text:f.label, href:f.url})); }); }
+  if(bats.length){ b.push({t:'sub', text:L('bat.players')}); bats.forEach(x=>{ b.push({t:'h3', text:x.name, meta:batMeta(g,x)}, {t:'p', text:cleanReview(x.review)}); (x.files||[]).forEach(f=>b.push({t:'linkline', text:f.label, href:f.url})); }); }
   const parts = g.partnerships.filter(p=>has(p.runs));
-  if(parts.length) b.push({t:'sub', text:L('bat.partnerships')}, {t:'table', head:['Runs','Wicket','Batters','Innings'], rows:parts.map(p=>[p.runs, p.wicket||'–', p.batters||'–', p.innings==='2'?'2nd inns':'1st inns'])});
-  if(g.batMilestones.length) b.push({t:'sub', text:L('bat.milestones')}, msTableBlock(g.batMilestones));
+  if(parts.length) b.push({t:'sub', text:L('bat.partnerships')}, partTableBlock(g, parts));
+  if(g.batMilestones.length) b.push({t:'sub', text:L('bat.milestones')}, msTableBlock(g.batMilestones, isLtd(g)));
 
   b.push({t:'h', text:L('tab.bowling')});
   b.push({t:'sub', text:L('bowl.summary')}, {t:'p', text:g.bowlingSummary});
   const sums = gameBowlerSums(g);
   const mrows = [['Wickets taken', sums.wkts]];
-  s.bowlMetrics.forEach(m=>{ if(metricValue(g,m)) mrows.push([m.label, kpiText(g,m)]); });
+  s.bowlMetrics.forEach(m=>{ if(kpiFor(m,g) && metricValue(g,m)) mrows.push([m.label, kpiText(g,m)]); });
+  if(teamKpiText(g,'bowl')) mrows.push(['Team bowling KPIs', teamKpiText(g,'bowl')]);
   b.push({t:'kv', rows:mrows});
   const bowls = g.bowlers.filter(x=>(x.name||'').trim());
-  if(bowls.length){ b.push({t:'sub', text:L('bowl.players')}); bowls.forEach(x=>{ b.push({t:'h3', text:x.name, meta:bowlFig(x)}, {t:'p', text:cleanReview(x.review)}); (x.files||[]).forEach(f=>b.push({t:'linkline', text:f.label, href:f.url})); }); }
-  if(g.bowlMilestones.length) b.push({t:'sub', text:L('bowl.milestones')}, msTableBlock(g.bowlMilestones));
+  if(bowls.length){ b.push({t:'sub', text:L('bowl.players')}); bowls.forEach(x=>{ b.push({t:'h3', text:x.name, meta:bowlMeta(g,x)}, {t:'p', text:cleanReview(x.review)}); (x.files||[]).forEach(f=>b.push({t:'linkline', text:f.label, href:f.url})); }); }
+  if(g.bowlMilestones.length) b.push({t:'sub', text:L('bowl.milestones')}, msTableBlock(g.bowlMilestones, isLtd(g)));
+
+  b.push(...fieldingBlocks(g, true));
 
   b.push({t:'h', text:L('tab.wtp')});
   WTP_KEYS.forEach(k=>{ const e=g.wtp[k]; b.push({t:'h3', text:wtpLabel(k), meta:e.rating?`${e.rating}/5, ${wtpScale(e.rating)}`:'Not rated'}, {t:'p', text:e.comments}); });
@@ -1959,11 +2596,12 @@ function matchReportBlocks(g, s, mode){
 function briefBlocks(g, s){
   const b = [], url = safeUrl(g.scorecardUrl), sc = scoresLine(g), o = g.opponent||'Opponent';
   b.push({t:'title', text:`${L('gs.round')} ${g.round||'–'} v ${g.opponent||'Opponent TBC'}${g.result?`: ${g.result.toUpperCase()}`:''}`,
-    sub:[g.venue, fmtDate(g.date)].filter(Boolean).join(', ') || `${L('app.team')}, Season ${s.name}`});
+    sub:[isLtd(g)?FORMATS[fmtOf(g)].label:'', g.venue, fmtDate(g.date)].filter(Boolean).join(', ') || `${progName()}, Season ${s.name}`});
   if(url) b.push({t:'button', text:'View full scorecard', href:url});
-  b.push({t:'kv', rows:[['QLD', sc.q||'–'], [o, sc.o||'–']]});
+  const ft = fieldingTotals([g]);
+  b.push({t:'kv', rows:[['QLD', sc.q||'–'], [o, sc.o||'–'], ...(fieldingHasData(ft)?[[L('tab.fielding'), fieldingText(ft)]]:[])]});
   const t = sessResultTally([g]);
-  if(t.won+t.even+t.lost) b.push({t:'tally', won:t.won, even:t.even, lost:t.lost});
+  if(t.won+t.even+t.lost) b.push({t:'tally', won:t.won, even:t.even, lost:t.lost, unit:isLtd(g)?'blocks':'sessions'});
 
   if((g.summary||'').trim()) b.push({t:'h', text:'The game'}, {t:'p', text:g.summary});
   const focus = (g.focus||'').split('\n').map(l=>l.replace(/^\s*(\d+[.)]|[-•*])\s*/,'').trim()).filter(Boolean);
@@ -1993,68 +2631,39 @@ function briefBlocks(g, s){
   if(people.size) b.push({t:'h', text:'Player reviews'}, {t:'reviews', items:[...people.values()]});
   return b;
 }
-function matchSummaryBlocks(g, s){
-  const b = [];
-  const url = safeUrl(g.scorecardUrl);
-  const sc = scoresLine(g);
-  b.push({t:'title', text:`${L('gs.round')} ${g.round||'–'} v ${g.opponent||'Opponent TBC'}`, sub:`${L('app.team')}, Season ${s.name}. Summary`});
-  if(url) b.push({t:'button', text:'View full scorecard', href:url});
-  b.push({t:'kv', rows:[[L('gs.result'),g.result||'Not recorded'],
-    [L('gs.venue')+', '+L('gs.date').toLowerCase(),[g.venue,fmtDate(g.date)].filter(Boolean).join(', ')||'–'],
-    ['QLD',sc.q||'–'],[g.opponent||'Opponent',sc.o||'–']]});
-  const sb = sessionBlocks(g); if(sb.length) b.push({t:'h', text:L('gs.sessions')}, ...sb);
-  b.push({t:'h', text:L('gs.summary')}, {t:'p', text:g.summary});
-  b.push({t:'h', text:L('gs.positives')}, {t:'p', text:g.positives});
-  b.push({t:'h', text:L('gs.learnings')}, {t:'p', text:g.learnings});
-
-  b.push({t:'h', text:L('tab.batting')}, {t:'p', text:g.battingSummary});
-  const bats = g.batters.filter(x=>(x.name||'').trim() && batFig(x));
-  if(bats.length) b.push({t:'table', head:['Batter','Scores'], rows:bats.map(x=>[x.name, batFig(x)])});
-  bats.forEach(x=>(x.files||[]).forEach(f=>b.push({t:'linkline', text:`${x.name}: ${f.label}`, href:f.url})));
-  const ms = [...g.batMilestones.filter(m=>m.player||m.detail).map(m=>`${m.player||'–'} ${m.type}${m.detail?` (${m.detail})`:''}`)];
-  const pb = partnershipBuckets([g]); const big = g.partnerships.filter(p=>num(p.runs)>=50).map(p=>`${p.runs} for the ${p.wicket||'?'} wicket${p.batters?` (${p.batters})`:''}`);
-  if(ms.length) b.push({t:'small', text:`${L('bat.milestones')}: ${ms.join('; ')}`});
-  if(big.length) b.push({t:'small', text:`${L('bat.partnerships')}: ${big.join('; ')}`});
-
-  b.push({t:'h', text:L('tab.bowling')}, {t:'p', text:g.bowlingSummary});
-  const bowls = g.bowlers.filter(x=>(x.name||'').trim() && bowlFig(x));
-  if(bowls.length) b.push({t:'table', head:['Bowler','Figures'], rows:bowls.map(x=>[x.name, bowlFig(x)])});
-  bowls.forEach(x=>(x.files||[]).forEach(f=>b.push({t:'linkline', text:`${x.name}: ${f.label}`, href:f.url})));
-  const sums = gameBowlerSums(g);
-  const indicators = [`${sums.wkts} wickets`, ...s.bowlMetrics.map(m=>metricValue(g,m) ? `${m.label}: ${kpiText(g,m)}` : '').filter(Boolean)];
-  b.push({t:'small', text:indicators.join(', ')});
-  const bms = g.bowlMilestones.filter(m=>m.player||m.detail).map(m=>`${m.player||'–'} ${m.type}${m.detail?` (${m.detail})`:''}`);
-  if(bms.length) b.push({t:'small', text:`${L('bowl.milestones')}: ${bms.join('; ')}`});
-
-  b.push({t:'h', text:L('tab.wtp')});
-  b.push({t:'table', head:['Category','Rating'], rows:WTP_KEYS.map(k=>{ const r=g.wtp[k].rating; return [wtpLabel(k), r?`${r}/5, ${wtpScale(r)}`:'Not rated']; })});
-  b.push({t:'p', text:g.wtp.overall});
-  return b;
-}
 function seasonReportBlocks(s){
   const b = [], r = seasonRecordCounts(s), games = sortedGames(s);
   const bat = battingSeason(s), bowl = bowlingSeason(s), wtp = wtpAverages(s);
-  b.push({t:'title', text:`${L('app.team')} ${L('sr.reportTitle')}`, sub:`Season ${s.name}`});
+  const fs = seasonFormats(s), mixed = fs.length>1, lo = s.games.some(isLtd);
+  b.push({t:'title', text:`${progName()} ${L('sr.reportTitle')}`, sub:`Season ${s.name}${(fs.length===1 && s!==S() && S().games.some(g=>fmtOf(g)!==fs[0]))?`, ${FORMATS[fs[0]].short} matches`:''}`});
   b.push({t:'kv', rows:[[L('stat.played'),r.played],[L('stat.wins'),r.Win],[L('stat.losses'),r.Loss],[L('stat.draws'),r.Draw+r.Tie]]});
   b.push({t:'h', text:L('sr.seasonSummary')}, {t:'p', text:s.seasonSummary});
   b.push({t:'h', text:L('sr.games')});
   if(!games.length) b.push({t:'p', text:''});
   games.forEach(g=>{
     const sc = scoresLine(g);
-    b.push({t:'h3', text:gameTitle(g), meta:[g.result, g.venue, fmtDate(g.date)].filter(Boolean).join(', ')});
+    b.push({t:'h3', text:gameTitle(g), meta:[mixed||fmtOf(g)!==defaultFormat(s.programId)?FORMATS[fmtOf(g)].short:'', g.result, g.venue, fmtDate(g.date)].filter(Boolean).join(', ')});
     if(sc.q||sc.o) b.push({t:'small', text:`QLD ${sc.q||'–'}   ${oppShort(g)} ${sc.o||'–'}`});
-    if(sessHasData(g)) b.push({t:'small', text:`${L('gs.sessions')}: `+DAYS.filter(d=>sessTotals(g,dd=>dd===d).q.n+sessTotals(g,dd=>dd===d).o.n).map(d=>{ const t=sessTotals(g,dd=>dd<=d); return `Day ${d} close QLD ${innText(t,'q',false)}, ${oppShort(g)} ${innText(t,'o',false)}`; }).join('; ')});
+    if(!isLtd(g) && sessHasData(g)) b.push({t:'small', text:`${L('gs.sessions')}: `+DAYS.filter(d=>sessTotals(g,dd=>dd===d).q.n+sessTotals(g,dd=>dd===d).o.n).map(d=>{ const t=sessTotals(g,dd=>dd<=d); return `Day ${d} close QLD ${innText(t,'q',false)}, ${oppShort(g)} ${innText(t,'o',false)}`; }).join('; ')});
     if(safeUrl(g.scorecardUrl)) b.push({t:'linkline', text:'Scorecard', href:safeUrl(g.scorecardUrl)});
     b.push({t:'p', text:g.summary});
   });
   const sr = seasonSessionRows(s);
   if(sr){
-    b.push({t:'h', text:L('gs.sessions')}, {t:'table', head:['Session','Won','Even','Lost','Overs batted','Runs','Wkts lost','Overs bowled','Runs conceded','Wkts taken'], rows:sr.map(r=>[`Session ${r.n}`, r.res.won, r.res.even, r.res.lost, r.q.b?ballsToOvers(r.q.b):'–', r.q.r, r.q.w, r.o.b?ballsToOvers(r.o.b):'–', r.o.r, r.o.w])});
-    const st = sessResultTally(s.games); if(st.won+st.even+st.lost) b.push({t:'small', text:`Sessions across the season: ${tallyText(st)}`});
+    b.push({t:'h', text:L('gs.sessions')+(mixed?', Multi-day':'')}, {t:'table', head:['Session','Won','Even','Lost','Overs batted','Runs','Wkts lost','S/R','Overs bowled','Runs conceded','Wkts taken','E/R'], rows:sr.map(r=>[`Session ${r.n}`, r.res.won, r.res.even, r.res.lost, r.q.b?ballsToOvers(r.q.b):'–', r.q.r, r.q.w, srOf(r.q), r.o.b?ballsToOvers(r.o.b):'–', r.o.r, r.o.w, erOf(r.o)])});
+    const st = sessResultTally(s.games.filter(g=>!isLtd(g))); if(st.won+st.even+st.lost) b.push({t:'small', text:`Sessions across the season: ${tallyText(st)}`});
   }
+  ['od','t20'].forEach(f=>{
+    const x = ltdSeasonRows(s.games, f); if(!x) return;
+    const row = r=>[r.lbl, r.phase?'':r.res.won, r.phase?'':r.res.even, r.phase?'':r.res.lost, srOf(r.bat), r.bat.w, dotPct(r.bat), bndPct(r.bat), erOf(r.bowl), r.bowl.w, dotPct(r.bowl), bndPct(r.bowl)];
+    b.push({t:'h', text:`${L('gs.overs')}, ${FORMATS[f].short}`}, {t:'table', head:['Overs','Won','Even','Lost','Bat S/R','Wkts lost','Bat dot %','Bat 4s/6s %','Bowl E/R','Wkts taken','Bowl dot %','Bowl 4s/6s %'], rows:[...x.blocks.map(row), ...x.phases.map(row)]});
+    const st = sessResultTally(x.games); if(st.won+st.even+st.lost) b.push({t:'small', text:`Blocks across the season: ${tallyText(st)}`});
+    if(surgeText(x.surge)) b.push({t:'small', text:surgeText(x.surge)});
+  });
   b.push({t:'h', text:L('tab.batting')});
+  { const v = kpiVals('bat', teamSums(s.games,'bat',0)).filter(([,x])=>x!=='–'); if(v.length) b.push({t:'small', text:`Team batting KPIs: ${v.map(([l,x])=>`${l} ${x}`).join(', ')}`}); }
   if(bat.length){
-    b.push({t:'table', head:['Player','Inns','Runs','Avg','SR','HS','50+','100+'], rows:bat.map(p=>[p.name,p.inns,p.runs,f2(p.avg),f1(p.sr),p.hsText,p.fifties,p.hundreds])});
+    b.push({t:'table', head:['Player','Inns','Runs','Avg','S/R','HS','Dot %','4s/6s %','BPB','50+','100+'], rows:bat.map(p=>[p.name,p.inns,p.runs,f2(p.avg),f1(p.sr),p.hsText,p.dotPct,p.bndPct,p.bpb,p.fifties,p.hundreds])});
     const pb = partnershipBuckets(s.games);
     b.push({t:'small', text:`${L('bat.partnerships')}: ${pb.fifty} of 50–99, ${pb.hundred} of 100–149, ${pb.oneFifty} of 150+`});
     const ms = milestoneCounts(s.games,'bat',s.batMilestoneTypes).filter(m=>m.count);
@@ -2062,14 +2671,19 @@ function seasonReportBlocks(s){
     bat.filter(p=>((s.playerNotes[p.key]||{}).bat||'').trim()).forEach(p=>b.push({t:'h3', text:p.name, meta:`${p.runs} runs at ${f2(p.avg)}`}, {t:'p', text:s.playerNotes[p.key].bat}));
   } else b.push({t:'p', text:''});
   b.push({t:'h', text:L('tab.bowling')});
+  { const v = kpiVals('bowl', teamSums(s.games,'bowl',0)).filter(([,x])=>x!=='–'); if(v.length) b.push({t:'small', text:`Team bowling KPIs: ${v.map(([l,x])=>`${l} ${x}`).join(', ')}`}); }
   if(bowl.length){
-    b.push({t:'table', head:['Player','Overs','Mdns','Runs','Wkts','Avg','Econ','Best'], rows:bowl.map(p=>[p.name,p.overs,p.maidens,p.runs,p.wkts,f2(p.avg),f2(p.econ),p.bestText])});
+    b.push({t:'table', head:['Player','Overs','Mdns','Runs','Wkts','Avg','E/R','Best','Dot %','4s/6s %','BPB'], rows:bowl.map(p=>[p.name,p.overs,p.maidens,p.runs,p.wkts,f2(p.avg),f2(p.econ),p.bestText,p.dotPct,p.bndPct,p.bpb])});
     const tb = bowlingTeamSeason(s);
-    b.push({t:'small', text:`${L('bowl.summary')}: ${tb.wkts} wickets${tb.metrics.map(m=>`, ${m.total} ${m.label.toLowerCase()}`).join('')}`});
+    b.push({t:'small', text:`${L('bowl.summary')}: ${tb.wkts} wickets${tb.metrics.filter(m=>m.total).map(m=>`, ${m.total} ${m.label.toLowerCase()}`).join('')}`});
     const ms = milestoneCounts(s.games,'bowl',s.bowlMilestoneTypes).filter(m=>m.count);
     if(ms.length) b.push({t:'small', text:`${L('bowl.milestones')}: ${ms.map(m=>`${m.count} × ${m.type}`).join(', ')}`});
     bowl.filter(p=>((s.playerNotes[p.key]||{}).bowl||'').trim()).forEach(p=>b.push({t:'h3', text:p.name, meta:`${p.wkts} wickets at ${f2(p.avg)}`}, {t:'p', text:s.playerNotes[p.key].bowl}));
   } else b.push({t:'p', text:''});
+  const ft = fieldingTotals(s.games);
+  if(fieldingHasData(ft)){
+    b.push({t:'h', text:L('tab.fielding')}, fieldingTable(ft), {t:'small', text:`Run outs ${ft.ro}, direct hits ${ft.dh}, boundary saves ${ft.bs}`});
+  }
   b.push({t:'h', text:L('tab.wtp')});
   b.push({t:'table', head:['Category','Average','Matches rated'], rows:WTP_KEYS.map(k=>[wtpLabel(k), wtp[k].n?f1(wtp[k].avg)+' / 5':'–', wtp[k].n])});
   b.push({t:'h', text:L('sr.reflections')}, {t:'p', text:s.coachReflections});
@@ -2097,7 +2711,7 @@ function blocksToHTML(blocks){
       case 'small': return `<p style="margin:2px 0 6px;color:#565F59;font-size:12.5px;">${nl2br(b.text)}</p>`;
       case 'chips': return `<p style="margin:4px 0 10px;">${b.items.map(i=>`<span style="display:inline-block;background:#F3E8EC;color:#6E1B3C;font-weight:bold;font-size:12.5px;padding:4px 10px;border-radius:12px;margin:0 6px 6px 0;">${esc(i)}</span>`).join('')}</p>`;
       case 'kv': return `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:4px 0 8px;">${b.rows.map(([k,v])=>`<tr><td style="${EM.td}color:#565F59;width:190px;">${esc(k)}</td><td style="${EM.td}font-weight:bold;">${kvVal(v)}</td></tr>`).join('')}</table>`;
-      case 'tally': return `<p style="margin:2px 0 12px;font-size:13px;font-weight:bold;"><span style="color:#3C8B69;">&#9679; Won ${b.won}</span> &nbsp; <span style="color:#C89339;">&#9679; Even ${b.even}</span> &nbsp; <span style="color:#B5453D;">&#9679; Lost ${b.lost}</span> <span style="font-weight:normal;color:#565F59;">&nbsp;sessions</span></p>`;
+      case 'tally': return `<p style="margin:2px 0 12px;font-size:13px;font-weight:bold;"><span style="color:#3C8B69;">&#9679; Won ${b.won}</span> &nbsp; <span style="color:#C89339;">&#9679; Even ${b.even}</span> &nbsp; <span style="color:#B5453D;">&#9679; Lost ${b.lost}</span> <span style="font-weight:normal;color:#565F59;">&nbsp;${b.unit||'sessions'}</span></p>`;
       case 'focus': return `<div style="margin:18px 0 6px;background:#FBF4E6;border-left:5px solid #E0A23E;border-radius:8px;padding:14px 18px 10px;">
           <div style="font-family:Georgia,'Times New Roman',serif;color:#6E1B3C;font-size:18px;font-weight:bold;margin-bottom:6px;">${esc(b.title)}</div>
           <ol style="margin:0 0 4px;padding-left:22px;">${b.items.map(i=>`<li style="margin:5px 0;font-size:14.5px;">${esc(i)}</li>`).join('')}</ol></div>`;
@@ -2122,14 +2736,13 @@ function blocksToHTML(blocks){
           <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:0 -4px 8px;"><tr>${b.items.map(tile).join('')}</tr></table>`;
       }
       case 'reviews': {
-        const pill = url=>`<a href="${esc(url)}" style="display:inline-block;padding:3px 12px;border-radius:12px;background:#6E1B3C;color:#FBFAF6;font-size:12px;font-weight:bold;text-decoration:none;">View</a>`;
-        const cell = (r, kind)=>{ const fs = r.files.filter(f=>f.kind.startsWith(kind));
-          return fs.length ? fs.map(f=>pill(f.url)).join(' ') : `<span style="color:#C9C3B6;">–</span>`; };
-        const th = `font-size:11.5px;font-weight:bold;letter-spacing:.04em;color:#8A918C;padding:2px 10px 6px;`;
-        return `<table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:4px 0 10px;">
-          <tr><td style="${th}padding-left:0;">PLAYER</td><td width="110" style="${th}text-align:center;">BATTING</td><td width="110" style="${th}text-align:center;">BOWLING</td></tr>
-          ${b.items.map(r=>`<tr><td style="${EM.td}padding-left:0;font-size:14px;font-weight:bold;">${esc(r.name)}</td><td style="${EM.td}text-align:center;">${cell(r,'Batting')}</td><td style="${EM.td}text-align:center;">${cell(r,'Bowling')}</td></tr>`).join('')}
-        </table>`;
+        const icon = `<span style="display:inline-block;width:14px;height:17px;margin-right:8px;vertical-align:middle;border-radius:2px;background:#6E1B3C;color:#fff;font-size:7px;font-weight:bold;line-height:17px;text-align:center;">PDF</span>`;
+        const cell = r=>{ const first = r.files[0], extra = r.files.slice(1);
+          return `<a href="${esc(first.url)}" style="color:#6E1B3C;font-weight:bold;font-size:14px;text-decoration:underline;">${icon}<span style="vertical-align:middle;">${esc(r.name)}</span></a>${extra.map((f,k)=>` <a href="${esc(f.url)}" style="color:#6E1B3C;font-size:11.5px;">(${k+2})</a>`).join('')}`; };
+        const cols = 3, rows = [];
+        for(let k=0;k<b.items.length;k+=cols) rows.push(b.items.slice(k,k+cols));
+        return `<table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:4px 0 6px;">${rows.map(r=>`<tr>${[0,1,2].map(c=>`<td width="33%" style="padding:9px 8px 9px 0;border-bottom:1px solid #E6E1D4;">${r[c]?cell(r[c]):''}</td>`).join('')}</tr>`).join('')}</table>
+          <p style="margin:0 0 10px;font-size:12px;color:#8A918C;">Click a name to open their review.</p>`;
       }
       case 'list': return `<ol style="margin:4px 0 10px;padding-left:22px;">${b.items.map(i=>`<li style="margin:3px 0;">${esc(i)}</li>`).join('')}</ol>`;
       case 'players': return `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:4px 0 8px;width:100%;">${b.rows.map(r=>{
@@ -2161,11 +2774,11 @@ function blocksToText(blocks){
       case 'chips': return b.items.join(', ');
       case 'kv': return b.rows.map(([k,v])=>`${k}: ${isLink(v)?v.link:v}`).join('\n');
       case 'button': case 'linkline': return `${b.text}: ${b.href}`;
-      case 'tally': return `Sessions: won ${b.won}, even ${b.even}, lost ${b.lost}`;
+      case 'tally': return `${b.unit==='blocks'?'Blocks':'Sessions'}: won ${b.won}, even ${b.even}, lost ${b.lost}`;
       case 'list': return b.items.map((x,i)=>`${i+1}. ${x}`).join('\n');
       case 'top': return [b.bat.length?'Batting: '+b.bat.map(r=>`${r.name} ${r.fig}`).join('; '):'', b.bowl.length?'Bowling: '+b.bowl.map(r=>`${r.name} ${r.fig}`).join('; '):''].filter(Boolean).join('\n');
       case 'wtp': return b.items.map(it=>`${it.label}: ${it.rating?'●'.repeat(it.rating)+'○'.repeat(5-it.rating)+` ${it.rating}/5 (${it.word})`:'Not rated'}`).join('\n');
-      case 'reviews': return b.items.map(r=>`${r.name}: `+r.files.map(f=>`${f.kind} ${f.url}`).join(', ')).join('\n');
+      case 'reviews': return b.items.map(r=>`${r.name}: `+r.files.map(f=>f.url).join(' and ')).join('\n');
       case 'focus': return `\n${b.title.toUpperCase()}\n${'-'.repeat(b.title.length)}\n` + b.items.map((x,i)=>`${i+1}. ${x}`).join('\n');
       case 'players': return b.rows.map(r=>`${r.name}  ${r.fig||''}${r.files.length?`  (review: ${r.files.map(f=>f.url).join(', ')})`:''}`).join('\n');
       case 'table': return [b.head.join(' | '), ...b.rows.map(r=>r.map(c=>String(c).replace(/\n/g,', ')).join(' | '))].join('\n');
@@ -2201,17 +2814,20 @@ function detailSections(g, s){
   // Batting
   const bb = [];
   const bats = g.batters.filter(x=>(x.name||'').trim());
-  bats.forEach(x=>{ bb.push({t:'h3', text:x.name, meta:batFig(x)}, {t:'p', text:cleanReview(x.review)}); (x.files||[]).forEach(f=>bb.push({t:'linkline', text:f.label, href:f.url})); });
+  bats.forEach(x=>{ bb.push({t:'h3', text:x.name, meta:batMeta(g,x)}, {t:'p', text:cleanReview(x.review)}); (x.files||[]).forEach(f=>bb.push({t:'linkline', text:f.label, href:f.url})); });
   const parts = g.partnerships.filter(p=>has(p.runs));
-  if(parts.length) bb.push({t:'sub', text:L('bat.partnerships')}, {t:'table', head:['Runs','Wicket','Batters','Innings'], rows:parts.map(p=>[p.runs, p.wicket||'–', p.batters||'–', p.innings==='2'?'2nd inns':'1st inns'])});
-  if(g.batMilestones.length) bb.push({t:'sub', text:L('bat.milestones')}, msTableBlock(g.batMilestones));
+  if(parts.length) bb.push({t:'sub', text:L('bat.partnerships')}, partTableBlock(g, parts));
+  if(g.batMilestones.length) bb.push({t:'sub', text:L('bat.milestones')}, msTableBlock(g.batMilestones, isLtd(g)));
   secs.push({id:'batting', title:'Batting reviews', count:bats.length?plural(bats.length,'batter'):'', blocks:bb});
   // Bowling
   const wb = [];
   const bowls = g.bowlers.filter(x=>(x.name||'').trim());
-  bowls.forEach(x=>{ wb.push({t:'h3', text:x.name, meta:bowlFig(x)}, {t:'p', text:cleanReview(x.review)}); (x.files||[]).forEach(f=>wb.push({t:'linkline', text:f.label, href:f.url})); });
-  if(g.bowlMilestones.length) wb.push({t:'sub', text:L('bowl.milestones')}, msTableBlock(g.bowlMilestones));
+  bowls.forEach(x=>{ wb.push({t:'h3', text:x.name, meta:bowlMeta(g,x)}, {t:'p', text:cleanReview(x.review)}); (x.files||[]).forEach(f=>wb.push({t:'linkline', text:f.label, href:f.url})); });
+  if(g.bowlMilestones.length) wb.push({t:'sub', text:L('bowl.milestones')}, msTableBlock(g.bowlMilestones, isLtd(g)));
   secs.push({id:'bowling', title:'Bowling reviews', count:bowls.length?plural(bowls.length,'bowler'):'', blocks:wb});
+  // Fielding
+  const fb = fieldingBlocks(g, false);
+  if(fb.length) secs.push({id:'fielding', title:L('tab.fielding'), count:'', blocks:fb});
   // Way to Play
   const pb = [];
   WTP_KEYS.forEach(k=>{ const e=g.wtp[k]; pb.push({t:'h3', text:wtpLabel(k), meta:e.rating?`${e.rating}/5, ${wtpScale(e.rating)}`:'Not rated'}, {t:'p', text:e.comments}); });
@@ -2288,6 +2904,58 @@ function printReport(blocks){
 
 /* ============================= SETTINGS ============================= */
 function openSettings(){ renderSettings(); }
+/* ---- Combine a player's batting and bowling PDFs into one file ---- */
+let pdfLibLoading = null;
+function loadPdfLib(){
+  if(window.PDFLib) return Promise.resolve();
+  if(pdfLibLoading) return pdfLibLoading;
+  const srcs = ['https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js','https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js'];
+  pdfLibLoading = new Promise((res, rej)=>{
+    const tryNext = i=>{ if(i>=srcs.length){ pdfLibLoading=null; rej(new Error('load')); return; }
+      const sc = document.createElement('script'); sc.src = srcs[i]; sc.onload = ()=>res(); sc.onerror = ()=>{ sc.remove(); tryNext(i+1); }; document.head.appendChild(sc); };
+    tryNext(0);
+  });
+  return pdfLibLoading;
+}
+function openCombine(list, id){
+  const p = G()[list].find(x=>x.id===id); const name = (p && p.name || '').trim() || 'Player';
+  document.getElementById('modal-root').innerHTML = `
+  <div class="modal-back" onclick="if(event.target===this)closeModal()">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Combine PDFs" style="max-width:480px;">
+      <div class="modal-head"><div class="modal-title">${esc(name)}</div><button class="icon-btn" onclick="closeModal()" aria-label="Close">×</button></div>
+      <div class="modal-body">
+        <label class="field-label">Batting review (PDF)</label><input type="file" id="cb-bat" accept="application/pdf,.pdf">
+        <label class="field-label">Bowling review (PDF)</label><input type="file" id="cb-bowl" accept="application/pdf,.pdf">
+        <div class="btn-row" style="margin-top:16px;"><button class="primary-btn" id="cb-go" onclick="combinePdfs('${esc(name).replace(/'/g,"\\'")}')">Combine and download</button></div>
+        <div class="hint" id="cb-msg">Upload the combined file to OneDrive, then attach its link here.</div>
+      </div>
+    </div>
+  </div>`;
+}
+async function combinePdfs(name){
+  const files = [document.getElementById('cb-bat').files[0], document.getElementById('cb-bowl').files[0]].filter(Boolean);
+  const msg = document.getElementById('cb-msg'), btn = document.getElementById('cb-go');
+  if(!files.length){ msg.textContent = 'Choose at least one PDF.'; return; }
+  btn.disabled = true; msg.textContent = 'Combining…';
+  try{
+    await loadPdfLib();
+    const out = await PDFLib.PDFDocument.create();
+    for(const f of files){
+      const src = await PDFLib.PDFDocument.load(await f.arrayBuffer(), {ignoreEncryption:true});
+      (await out.copyPages(src, src.getPageIndices())).forEach(pg=>out.addPage(pg));
+    }
+    const blob = new Blob([await out.save()], {type:'application/pdf'});
+    const g = G(), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${name} - Round ${g.round||''} review.pdf`.replace(/[\\/:*?"<>|]+/g,'').replace(/\s+/g,' ');
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 3000);
+    msg.textContent = `Done: ${out.getPageCount()} page${out.getPageCount()===1?'':'s'}. Upload it to OneDrive, then attach its link here.`;
+  }catch(e){
+    console.warn(e);
+    msg.textContent = e && e.message==='load' ? 'Could not load the PDF tool. Check your internet connection and try again.' : 'One of those files could not be read as a PDF.';
+  }
+  btn.disabled = false;
+}
 function closeModal(){ document.getElementById('modal-root').innerHTML=''; }
 function renderSettings(openGroup){
   const cur = db.activeSeasonId;
@@ -2315,12 +2983,12 @@ function renderSettings(openGroup){
         </div>
 
         <div class="modal-section">
-          <h3>Seasons</h3>
-          ${db.seasons.map(s=>`<div class="season-row">
+          <h3>Seasons: ${esc(progName())}</h3>
+          ${PS().map(s=>`<div class="season-row">
             <input type="text" value="${esc(s.name)}" aria-label="Season name" onchange="renameSeason('${s.id}',this.value)">
             ${s.id===cur?'<span class="tag cur">Open</span>':`<button class="tool-btn" onclick="closeModal();switchSeason('${s.id}')">Open</button>`}
             <button class="tool-btn" onclick="toggleArchive('${s.id}')">${s.archived?'Restore':'Archive'}</button>
-            ${db.seasons.length>1?`<button class="tool-btn danger" onclick="deleteSeason('${s.id}')">Delete</button>`:''}
+            ${PS().length>1?`<button class="tool-btn danger" onclick="deleteSeason('${s.id}')">Delete</button>`:''}
           </div>`).join('')}
           <div class="inline-add"><input type="text" id="new-season" value="${esc(nextSeasonName())}"><button onclick="createSeason()">Start new season</button></div>
         </div>
@@ -2387,7 +3055,7 @@ function uploadLogo(file){
 }
 function removeLogo(){ db.logo=''; touchIndex(); render(); renderSettings(); }
 function nextSeasonName(){
-  const last = db.seasons[db.seasons.length-1].name; const m = String(last).match(/^(\d{4})\/(\d{2})$/);
+  const ps = PS(); if(!ps.length) return ''; const last = ps[ps.length-1].name; const m = String(last).match(/^(\d{4})\/(\d{2})$/);
   return m ? `${+m[1]+1}/${String((+m[2]+1)%100).padStart(2,'0')}` : '';
 }
 function renameSeason(id, v){ const s=db.seasons.find(x=>x.id===id); s.name=v.trim()||s.name; if(!s.stub) touchSeason(s); touchIndex(); render(); }
@@ -2397,8 +3065,8 @@ function toggleArchive(id){
 }
 function createSeason(){
   const name = document.getElementById('new-season').value.trim(); if(!name) return;
-  const prev = S(); const s = newSeason(name, prev && !prev.stub ? prev : null);
-  db.seasons.push(s); db.activeSeasonId = s.id;
+  const prev = S(); const s = newSeason(name, prev && !prev.stub && prev.programId===P() ? prev : null, P());
+  db.seasons.push(s); db.activeSeasonId = s.id; db.programSeason[P()] = s.id;
   touchSeason(s); touchIndex(); closeModal(); go('dashboard'); toast(`Season ${name} started`);
 }
 function deleteSeason(id){
@@ -2407,7 +3075,7 @@ function deleteSeason(id){
   (s.games||[]).forEach(g=>jbDelete(g._bin)); jbDelete(s._bin);
   db.seasons = db.seasons.filter(x=>x.id!==id);
   [...dirty].forEach(k=>{ if(k.includes(id)) dirty.delete(k); });
-  if(db.activeSeasonId===id) db.activeSeasonId = (db.seasons.find(x=>!x.archived)||db.seasons[0]).id;
+  if(db.activeSeasonId===id){ const ps = PS(); db.activeSeasonId = (ps.find(x=>!x.archived)||ps[0]).id; db.programSeason[P()] = db.activeSeasonId; }
   touchIndex(); go('dashboard'); renderSettings();
 }
 async function saveConnection(){
