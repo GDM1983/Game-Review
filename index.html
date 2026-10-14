@@ -473,6 +473,14 @@
   .kt-row.team .kt-v{font-size:20px;}
   .kt-cap{font-size:11px;font-weight:700;color:var(--ink-soft);margin-top:12px;text-transform:uppercase;letter-spacing:.05em;}
   @media (max-width:640px){.kt-row{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .bbb-modal{max-width:760px;}
+  .bbb-text{min-height:90px;font-size:12px;}
+  .bbb-sum{margin:14px 0 8px;font-size:14px;}
+  .bbb-opts{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
+  .bbb-warn{background:rgba(200,147,57,0.12);border-radius:10px;padding:8px 12px;font-size:12.5px;margin:8px 0;}
+  .bbb-table td,.bbb-table th{padding:6px 8px;font-size:13px;}
+  .bbb-name{padding:6px 8px;font-size:13px;min-width:170px;}
+  .bbb-hid{display:block;font-size:11px;color:var(--ink-soft);margin-top:2px;}
 </style>
 </head>
 <body>
@@ -1920,6 +1928,7 @@ function tabSummary(g){
     <div class="url-row">
       <input type="url" placeholder="https://" value="${esc(g.scorecardUrl)}" oninput="setScorecard(this.value)">
       <button class="ghost-btn" onclick="openScorecard()">Open</button>
+      <button class="primary-btn" onclick="openFill()">Fill from ball by ball</button>
     </div>
   </div>
 
@@ -2083,6 +2092,239 @@ function teamKpiPanel(kind){
 function teamKpiText(g, kind){
   const v = kpiVals(kind, teamSums([g], kind, 0)).filter(([,x])=>x!=='–');
   return v.map(([l,x])=>`${l} ${x}`).join(', ');
+}
+
+/* ============================= BALL-BY-BALL READER =============================
+   Reads the text copied from a PlayCricket / PlayHQ "Ball by ball" page (one innings).
+   Each delivery appears as an over.ball line (e.g. "74.5") followed by "Bowler to Batter : outcome".
+   Dismissal cards ("Full Name / c: …, b: … / R n / B n / 4s n / 6s n") give each dismissed batter's full name. */
+function parseBallByBall(text){
+  const lines = (text||'').split(/\r?\n/).map(l=>l.trim());
+  const balls = [], cards = [], overBowler = {}, unread = [];
+  let team = '', topScore = null;
+  for(let i=0;i<lines.length;i++){
+    const l = lines[i];
+    // over summary: "Over 75. 7 runs. Bowler: Daniel Wilczynski. Queensland: 281/10(rr 3.75)"
+    let m = l.match(/^Over (\d+)\. .*?Bowler: (.+?)\. (.+?): (\d+)\/(\d+)/);
+    if(m){ overBowler[+m[1]] = m[2]; if(!team) team = m[3]; if(topScore===null) topScore = {over:+m[1], runs:+m[4], wkts:+m[5]}; continue; }
+    if(!/^\d+\.\d$/.test(l)) continue;
+    const d = lines[i+1]||'';
+    m = d.match(/^(Out!\s*([A-Za-z ]+?)\.\s*)?(.+?) to (.+?) : (.+)$/);
+    if(!m){ continue; }
+    const ball = {ov:l, over: Math.floor(parseFloat(l))+1, bowler:m[3].trim(), batter:m[4].trim(), out: !!m[1], how:(m[2]||'').trim(),
+      bat:0, nb:0, wd:0, b:0, lb:0};
+    const res = m[5].trim();
+    if(ball.out){
+      const extra = res.replace(/^.*?dismissed\s*,?\s*/i,'');   // e.g. a run out after runs were taken
+      parseOutcome(extra, ball);
+      // dismissal card follows: full name, dismissal text, R, B, 4s, 6s
+      const card = readCard(lines, i+2);
+      if(card) cards.push(Object.assign(card, {short: ball.batter, how: ball.how}));
+    } else if(!parseOutcome(res, ball)) unread.push(`${l} ${d}`);
+    balls.push(ball);
+  }
+  balls.reverse();   // the page lists the latest ball first
+  return summarise(balls, cards, overBowler, team, topScore, unread);
+}
+function parseOutcome(res, ball){
+  if(!res) return true;
+  let ok = true;
+  res.split(',').map(x=>x.trim()).filter(Boolean).forEach(t=>{
+    let m;
+    if(/^no run$/i.test(t)) return;
+    if((m = t.match(/^(\d+) runs?$/i))) ball.bat += +m[1];
+    else if((m = t.match(/^(\d+)\s*nb$/i))) ball.nb += +m[1];
+    else if((m = t.match(/^(\d+)\s*(wd|wides?|w)$/i))) ball.wd += +m[1];
+    else if((m = t.match(/^(\d+)\s*lb$/i))) ball.lb += +m[1];
+    else if((m = t.match(/^(\d+)\s*b$/i))) ball.b += +m[1];
+    else if(/^wide$/i.test(t)) ball.wd += 1;
+    else if(/^no ?ball$/i.test(t)) ball.nb += 1;
+    else ok = false;
+  });
+  return ok;
+}
+function readCard(lines, start){
+  const seq = []; let j = start;
+  while(j < lines.length && seq.length < 16){ if(lines[j]) seq.push(lines[j]); if(lines[j]==='SR'){ seq.push(lines[j+1]||'', lines[j+2]||''); break; } j++; }
+  const name = seq[0], at = k=>{ const x = seq.indexOf(k); return x>=0 ? seq[x+1] : null; };
+  if(!name || at('R')===null) return null;
+  return {name, dismissal: seq[1]&&!/^R$/.test(seq[1]) ? seq[1] : '', r:+at('R'), b:+at('B'), f:+at('4s'), s:+at('6s')};
+}
+function summarise(balls, cards, overBowler, team, topScore, unread){
+  const bat = new Map(), bowl = new Map(), overs = new Map();
+  const getBat = n=>{ if(!bat.has(n)) bat.set(n, {short:n, r:0, b:0, d:0, f:0, s:0, out:false}); return bat.get(n); };
+  const getBowl = n=>{ if(!bowl.has(n)) bowl.set(n, {short:n, balls:0, r:0, w:0, d:0, f:0, s:0, overs:new Map()}); return bowl.get(n); };
+  let total = 0, legal = 0;
+  const parts = []; let cur = {runs:0, names:[]};
+  balls.forEach(x=>{
+    cur.runs += x.bat + x.nb + x.wd + x.b + x.lb; if(!x.wd && !cur.names.includes(x.batter)) cur.names.push(x.batter);
+    if(x.out){ parts.push({wicket:parts.length+1, runs:cur.runs, names:cur.names.slice(), out:x.batter}); cur = {runs:0, names:cur.names.filter(n=>n!==x.batter)}; }
+    const isLegal = !x.nb && !x.wd;
+    const conceded = x.bat + x.nb + x.wd;                 // byes and leg byes aren't against the bowler
+    total += x.bat + x.nb + x.wd + x.b + x.lb;
+    const p = getBat(x.batter);
+    if(!x.wd){ p.b++; }                                   // a no-ball still counts as a ball faced
+    p.r += x.bat; if(x.bat===4) p.f++; if(x.bat===6) p.s++;
+    if(isLegal && x.bat===0) p.d++;
+    if(x.out) p.out = true;
+    const w = getBowl(x.bowler);
+    if(isLegal){ w.balls++; legal++; if(conceded===0) w.d++; }
+    w.r += conceded; if(x.bat===4) w.f++; if(x.bat===6) w.s++;
+    if(x.out && !/run ?out|retired|obstruct/i.test(x.how)) w.w++;
+    const ov = w.overs.get(x.over) || {balls:0, r:0}; if(isLegal) ov.balls++; ov.r += conceded; w.overs.set(x.over, ov);
+    const o = overs.get(x.over) || {over:x.over, r:0, w:0, balls:0, d:0, f:0, s:0};
+    o.r += x.bat + x.nb + x.wd + x.b + x.lb; if(x.out) o.w++; if(isLegal){ o.balls++; if(x.bat+x.nb+x.wd+x.b+x.lb===0) o.d++; } if(x.bat===4) o.f++; if(x.bat===6) o.s++;
+    overs.set(x.over, o);
+  });
+  // full names: dismissal cards for batters, over summaries for bowlers
+  const batters = [...bat.values()].map(p=>{
+    const c = cards.find(c=>c.short===p.short);
+    if(c){ p.name = c.name; p.check = {r:c.r, b:c.b, f:c.f, s:c.s}; } else p.name = p.short;
+    return p;
+  });
+  const fullBowler = {};
+  balls.forEach(x=>{ const n = overBowler[x.over]; if(n && n!=='********' && x.bowler!=='********') fullBowler[x.bowler] = n; });
+  const bowlers = [...bowl.values()].map(w=>({...w, name: w.short==='********' ? '' : (fullBowler[w.short]||w.short), hidden: w.short==='********',
+    maidens: [...w.overs.values()].filter(o=>o.balls===6 && o.r===0).length, oversText: ballsToOvers(w.balls)}));
+  const wkts = balls.filter(x=>x.out).length;
+  if(cur.runs || cur.names.length>1) parts.push({wicket:parts.length+1, runs:cur.runs, names:cur.names.slice(-2), unbroken:true});
+  const nameOf = sh=>{ const p = batters.find(b=>b.short===sh); return p ? p.name : sh; };
+  parts.forEach(p=>{ p.batters = p.names.slice(-2).map(nameOf).join(' & '); });
+  return {team, total, wkts, parts, topScore, legal, oversText: ballsToOvers(legal), batters, bowlers, overs:[...overs.values()].sort((a,b)=>a.over-b.over), unread, count: balls.length};
+}
+/* Innings totals listed in the page header: "1st QUE / 281", "2nd QUE / 6d-392" */
+function bbbHeaderInnings(text){
+  const out = [], ls = (text||'').split(/\r?\n/).map(l=>l.trim());
+  ls.forEach((l,i)=>{ const m = l.match(/^(1st|2nd) ([A-Z]{2,4})$/); if(m){ const v = (ls[i+1]||'').match(/^(?:(\d+)d?-)?(\d+)/); if(v) out.push({inn: m[1]==='1st'?1:2, code:m[2], runs:+v[2], dec:/^\d+d-/.test(ls[i+1])}); } });
+  return out;
+}
+/* Match details from the page header: round, venue, the two teams and the result line. */
+function bbbHeaderMeta(text){
+  const ls = (text||'').split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const meta = {};
+  const ri = ls.findIndex(l=>/^Round \d+/i.test(l));
+  if(ri>=0){ meta.round = ls[ri].replace(/^Round\s*/i,''); const v = (ls[ri+1]||'').match(/\+(.+)$/); if(v) meta.venue = v[1].trim(); }
+  const res = ls.find(l=>/ won by | match drawn|^drawn|tied|abandoned|no result/i.test(l));
+  if(res) meta.result = res;
+  const ci = ls.indexOf('COMPLETED'); const si = ls.findIndex(l=>/^Scorecard$/.test(l));
+  const teams = ls.slice(ri>=0?ri+1:0, si>0?si:ls.length).filter(l=>/^[A-Z][A-Za-z .'-]{3,}$/.test(l) && !/^(Skip|Play|Program|Community|Competitions|Stats|PlayHQ|Support|Search|Round|COMPLETED|Scorecard|Toyota)/.test(l));
+  meta.teams = [...new Set(teams)].filter(t=>!/ won by /.test(t));
+  return meta;
+}
+
+/* ---- Fill a match from the PlayCricket ball-by-ball page ---- */
+let bbb = null;
+const isQldTeam = t=>/queensland|\bqld\b|bulls/i.test(t||'');
+function openFill(){
+  bbb = {text:'', r:null};
+  document.getElementById('modal-root').innerHTML = `
+  <div class="modal-back" onclick="if(event.target===this)closeModal()">
+    <div class="modal bbb-modal" role="dialog" aria-modal="true" aria-label="Fill from ball by ball">
+      <div class="modal-head"><div class="modal-title">Fill from ball by ball</div><button class="icon-btn" onclick="closeModal()" aria-label="Close">×</button></div>
+      <div class="modal-body">
+        <textarea id="bbb-text" class="bbb-text" aria-label="Ball by ball page" oninput="bbbRead(this.value)"></textarea>
+        <div id="bbb-preview"></div>
+      </div>
+    </div>
+  </div>`;
+  setTimeout(()=>{ const t = document.getElementById('bbb-text'); if(t) t.focus(); }, 20);
+}
+/* match a scorecard name ("S Geyer" or "Scott Geyer") to a player already in the match or season */
+function bbbMatchName(name, short){
+  const g = G(), pool = [...new Set([...g.batters, ...g.bowlers].map(p=>(p.name||'').trim()).filter(Boolean).concat(playerNames(S())))];
+  const exact = pool.find(n=>pkey(n)===pkey(name)); if(exact) return exact;
+  const src = (short||name).trim().split(/\s+/); const sur = src.slice(1).join(' ').toLowerCase(), ini = (src[0]||'')[0];
+  const hit = pool.filter(n=>{ const w = n.trim().split(/\s+/); return w.slice(1).join(' ').toLowerCase()===sur && (w[0]||'')[0]===ini; });
+  if(hit.length!==1) return name;
+  const shortOnly = w=>w.trim().split(/\s+/)[0].length<=2;
+  return (shortOnly(hit[0]) && !shortOnly(name)) ? name : hit[0];   // a full name beats an initial
+}
+/* once a full name is known, replace "S Geyer" style names already saved in this match */
+function bbbUpgradeNames(g, full){
+  const w = full.trim().split(/\s+/); if(w[0].length<=2) return;
+  const short = `${w[0][0]} ${w.slice(1).join(' ')}`;
+  [...g.batters, ...g.bowlers].forEach(p=>{ if(pkey(p.name)===pkey(short)) p.name = full; });
+  [...g.batMilestones, ...g.bowlMilestones].forEach(m=>{ if(pkey(m.player)===pkey(short)) m.player = full; });
+  g.partnerships.forEach(p=>{ p.batters = (p.batters||'').split(' & ').map(x=>pkey(x)===pkey(short)?full:x).join(' & '); });
+}
+function bbbRead(text){
+  bbb.text = text; bbb.r = null;
+  const r = parseBallByBall(text);
+  if(!r.count){ document.getElementById('bbb-preview').innerHTML = text.trim() ? `<div class="bbb-warn">No deliveries found. Copy the Ball by ball tab for one innings.</div>` : ''; return; }
+  const g = G(), qldBat = isQldTeam(r.team);
+  // which innings: the header total for this team closest to what the balls add up to
+  const code = (r.team||'').slice(0,3).toUpperCase(), heads = bbbHeaderInnings(text).filter(h=>h.code===code);
+  const best = heads.slice().sort((a,b)=>Math.abs(a.runs-r.total)-Math.abs(b.runs-r.total))[0];
+  bbb.r = r; bbb.side = qldBat ? 'bat' : 'bowl'; bbb.inn = isLtd(g) ? 1 : (best ? best.inn : 1); bbb.pageTotal = best ? best.runs : null;
+  bbb.meta = bbbHeaderMeta(text);
+  const list = bbb.side==='bat' ? r.batters : r.bowlers;
+  bbb.rows = list.map(p=>({p, name: p.hidden ? '' : bbbMatchName(p.name, p.short), use: !p.hidden}));
+  bbbPreview();
+}
+function bbbSet(k, v){ bbb[k] = v; const list = bbb.side==='bat' ? bbb.r.batters : bbb.r.bowlers; if(k==='side') bbb.rows = list.map(p=>({p, name: p.hidden ? '' : bbbMatchName(p.name, p.short), use: !p.hidden})); bbbPreview(); }
+function bbbPreview(){
+  const r = bbb.r, g = G(), bat = bbb.side==='bat';
+  const short = bbb.pageTotal!=null && bbb.pageTotal!==r.total;
+  const head = bat ? ['Batter','R','B','4s','6s','Dots',''] : ['Bowler','O','M','R','W','Dots','4s','6s'];
+  const row = (x,i)=>{ const p = x.p;
+    const cells = bat ? [p.r, p.b, p.f, p.s, p.d, p.out?'':'not out'] : [p.oversText, p.maidens, p.r, p.w, p.d, p.f, p.s];
+    return `<tr><td><input type="text" list="dl-players" class="bbb-name" value="${esc(x.name)}" aria-label="Player" oninput="bbb.rows[${i}].name=this.value">${p.hidden?'<span class="bbb-hid">Name hidden on the page</span>':''}</td>${cells.map(c=>`<td>${c}</td>`).join('')}</tr>`; };
+  document.getElementById('bbb-preview').innerHTML = `
+    <div class="bbb-sum"><b>${esc(r.team||'Batting side')}</b> ${r.wkts}/${bbb.pageTotal!=null?bbb.pageTotal:r.total} (${r.oversText} ov)</div>
+    <div class="bbb-opts">
+      <div class="seg">${[['bat','QLD batting'],['bowl','QLD bowling']].map(([v,l])=>`<button class="${bbb.side===v?'on':''}" onclick="bbbSet('side','${v}')">${l}</button>`).join('')}</div>
+      ${isLtd(g)?'':`<div class="seg">${[1,2].map(n=>`<button class="${bbb.inn===n?'on':''}" onclick="bbbSet('inn',${n})">${n===1?'1st':'2nd'} innings</button>`).join('')}</div>`}
+    </div>
+    ${short?`<div class="bbb-warn">The deliveries on the page add up to ${r.total}, not the ${bbb.pageTotal} total, so ${Math.abs(bbb.pageTotal-r.total)} runs are missing from the ball list. ${bat?'Dismissed batters use their card figures; check the not-out batters':'Check the bowling figures'} against the scorecard.</div>`:''}
+    ${r.unread.length?`<div class="bbb-warn">${plural(r.unread.length,'delivery','deliveries')} couldn't be read: ${esc(r.unread.slice(0,3).join('; '))}</div>`:''}
+    <div class="table-wrap"><table class="stat-table bbb-table"><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${bbb.rows.map(row).join('')}</tbody></table></div>
+    <div class="btn-row" style="margin-top:14px;"><button class="primary-btn" onclick="bbbApply()">Fill match</button></div>`;
+}
+function bbbApply(){
+  const g = G(), s = S(), r = bbb.r, bat = bbb.side==='bat', n = bbb.inn, list = bat ? 'batters' : 'bowlers';
+  let filled = 0;
+  bbb.rows.forEach(x=>{
+    const name = (x.name||'').trim(); if(!name) return;
+    bbbUpgradeNames(g, name);
+    let pl = g[list].find(q=>pkey(q.name)===pkey(name));
+    if(!pl){ pl = bat ? newBatter() : newBowler(); pl.name = name; if(bat) pl.review = batTemplate(g); g[list].push(pl); }
+    const p = x.p, set = (k,v)=>{ pl['i'+n+k] = String(v); };
+    if(bat){ const c = p.check||{}; set('r', c.r??p.r); set('b', c.b??p.b); set('f', c.f??p.f); set('s', c.s??p.s); set('d', p.d); pl['i'+n+'no'] = !p.out; }
+    else { set('o', p.oversText); set('m', p.maidens); set('r', p.r); set('w', p.w); set('d', p.d); set('f', p.f); set('s', p.s); }
+    filled++;
+  });
+  // innings score
+  const k = (bat?'q':'o') + n, runs = bbb.pageTotal!=null ? bbb.pageTotal : r.total;
+  const dec = bbbHeaderInnings(bbb.text).some(h=>h.code===(r.team||'').slice(0,3).toUpperCase() && h.inn===n && h.dec);
+  g.scores[k] = `${r.wkts}/${runs}`; if(dec){ g.dec = g.dec||{}; g.dec[k] = true; }
+  // partnerships (QLD batting) and milestones, replacing any filled before for this innings
+  if(bat){
+    g.partnerships = g.partnerships.filter(p=>!(p.auto && p.innings===String(n)));
+    r.parts.filter(p=>p.runs>0).forEach(p=>g.partnerships.push(Object.assign(newPartnership(), {runs:String(p.runs), wicket:WICKETS[p.wicket-1]||'', batters:p.batters.split(' & ').map(x=>bbbMatchName(x,x)).join(' & '), innings:String(n), auto:true})));
+  }
+  const msList = bat ? 'batMilestones' : 'bowlMilestones', types = bat ? s.batMilestoneTypes : s.bowlMilestoneTypes;
+  g[msList] = g[msList].filter(m=>!(m.auto && m.innings===String(n)));
+  bbb.rows.forEach(x=>{ const name = (x.name||'').trim(); if(!name) return; const p = x.p;
+    const val = bat ? ((p.check||{}).r ?? p.r) : p.w;
+    const hit = types.map(t=>({t, v:parseInt(t)})).filter(o=>!isNaN(o.v) && val>=o.v).sort((a,b)=>b.v-a.v)[0];
+    if(hit) g[msList].push(Object.assign(newMilestone(hit.t), {player:name, detail: bat ? `${val}${p.out?'':'*'} (${(p.check||{}).b ?? p.b})` : `${p.w}/${p.r}`, innings:String(n), auto:true}));
+  });
+  // limited overs: the overs breakdown for that innings
+  if(isLtd(g)){ const side = bat ? 'bat' : 'bowl';
+    segs(g, side).forEach(sg=>{
+      const [a,b] = sg.key==='pp' ? [1, FORMATS.t20.pp] : fmtOf(g)==='od' ? [+sg.key*10+1, +sg.key*10+10] : sg.key.split('-').map(Number);
+      const ov = r.overs.filter(o=>o.over>=a && o.over<=b); if(!ov.length) return;
+      const t = ov.reduce((m,o)=>({balls:m.balls+o.balls, r:m.r+o.r, w:m.w+o.w, d:m.d+o.d, f:m.f+o.f, s:m.s+o.s}), {balls:0,r:0,w:0,d:0,f:0,s:0});
+      Object.assign(sg.data, {overs:ballsToOvers(t.balls), runs:String(t.r), wkts:String(t.w), dots:String(t.d), fours:String(t.f), sixes:String(t.s)});
+    });
+  }
+  // match details, only where still blank
+  const m = bbb.meta||{}, opp = (m.teams||[]).find(t=>!isQldTeam(t));
+  if(!g.opponent && opp) g.opponent = opp;
+  if(!g.venue && m.venue) g.venue = m.venue;
+  if(!g.result && m.result){ const x = m.result; g.result = /drawn|draw/i.test(x) ? 'Draw' : /tied/i.test(x) ? 'Tie' : /abandoned|no result/i.test(x) ? 'Abandoned' : / won by /i.test(x) ? (isQldTeam(x.split(/ won by /i)[0]) ? 'Win' : 'Loss') : ''; }
+  touchGame(g); closeModal(); render();
+  toast(`Filled ${plural(filled, bat?'batter':'bowler')}, ${n===1?'1st':'2nd'} innings`);
 }
 
 /* ---- Tab 2: Batting ---- */
