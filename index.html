@@ -3115,10 +3115,13 @@ function anApply(g){
   an.lists.parts.forEach(t=>{ const m = t.match(/^Inns \d+: (.+?) & (.+?): (\d+) for the (\w+) wicket/); if(!m) return; const n = String(innOf(t));
     if(g.partnerships.some(p=>p.innings===n && (p.auto===true || num(p.runs)===+m[3]))) return;
     g.partnerships.push(Object.assign(newPartnership(), {runs:m[3], wicket:m[4], batters:`${anName(m[1])} & ${anName(m[2])}`, innings:n, auto:'analyst'})); });
-  an.lists.milestones.forEach(t=>{ const m = t.match(/^Inns \d+: (.+?) (\d+) \((\d+) balls/); if(!m) return; const n = String(innOf(t)), name = anName(m[1]), runs = +m[2];
+  const addBatMs = (name, n, runs, balls, no)=>{
     if(g.batMilestones.some(x=>x.innings===n && nmSame(x.player, name))) return;
     const hit = s.batMilestoneTypes.map(t=>({t, v:parseInt(t)})).filter(o=>!isNaN(o.v) && runs>=o.v).sort((a,b)=>b.v-a.v)[0];
-    if(hit) g.batMilestones.push(Object.assign(newMilestone(hit.t), {player:(find('batters',name)||{}).name||name, detail:`${runs} (${m[3]})`, innings:n, auto:true})); });
+    if(hit) g.batMilestones.push(Object.assign(newMilestone(hit.t), {player:(find('batters',name)||{}).name||name, detail:`${runs}${no?'*':''} (${balls})`, innings:n, auto:true})); };
+  an.lists.milestones.forEach(t=>{ const m = t.match(/^Inns \d+: (.+?) (\d+)(\*?) \((\d+) balls/); if(!m) return; addBatMs(anName(m[1]), String(innOf(t)), +m[2], m[4], !!m[3]); });
+  // and from every batter's own scores, so nothing is missed if the report words a line differently
+  g.batters.forEach(p=>(isLtd(g)?[1]:[1,2]).forEach(n=>{ const k = 'i'+n; if(has(p[k+'r'])) addBatMs(p.name, String(n), num(p[k+'r']), num(p[k+'b']), p[k+'no']); }));
   an.bowl.forEach(b=>{ const p = find('bowlers', b.name); const parts = [...(b.notes['By innings']||'').matchAll(/inns (\d+): (\d+)-(\d+)/g)];
     (parts.length ? parts.map(x=>({inn:+x[1], w:+x[2], r:+x[3]})) : [{inn:b.solo||(an.innings.find(i=>!i.qld)||{}).inn, w:b.w, r:b.r}]).forEach(x=>{
       const inn = an.innings.find(i=>i.inn===x.inn), n = String(inn ? inn.n : 1);
