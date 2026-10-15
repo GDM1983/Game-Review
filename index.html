@@ -2813,6 +2813,23 @@ function anCells(items){
     cells.forEach(c=>c.s = c.s.trim());
     return {y:r.y, cells:cells.filter(c=>c.s), text:cells.map(c=>c.s).filter(Boolean).join(' | ')}; });
 }
+/* cards drawn as boxes (the newer side-by-side layout): each box is read on its own, measured from its left edge */
+function anBoxes(gr){
+  const bx = gr.filter(g=>g.op==='S' && g.curve && (g.col||[]).join(',')==='228,221,208' && g.pts.length>8).map(g=>{ const xs = g.pts.map(p=>p[0]), ys = g.pts.map(p=>p[1]);
+    return {x0:Math.min(...xs), x1:Math.max(...xs), y0:Math.min(...ys), y1:Math.max(...ys)}; }).filter(b=>b.x1-b.x0>100 && b.x1-b.x0<420 && b.y1-b.y0>30);
+  return bx.filter(b=>!bx.some(o=>o!==b && o.x0<=b.x0+1 && o.x1>=b.x1-1 && o.y0<=b.y0+1 && o.y1>=b.y1-1 && (o.x1-o.x0)*(o.y1-o.y0)>(b.x1-b.x0)*(b.y1-b.y0)));
+}
+function anLines(items, boxes, small){
+  if(!small && !boxes.length) return anCells(items);
+  const sx = x=> small ? 55 + (x-45)*1.556 : x;   // the boxed layout is printed smaller: positions back on the old scale
+  const inBox = t=>boxes.find(b=>t.transform[4]>=b.x0-2 && t.transform[4]<=b.x1+2 && t.transform[5]>=b.y0-2 && t.transform[5]<=b.y1+2);
+  const loose = [], per = new Map(boxes.map(b=>[b,[]]));
+  items.forEach(t=>{ const b = inBox(t); if(b) per.get(b).push(t); else loose.push(t); });
+  const units = anCells(loose).map(l=>{ l.cells.forEach(c=>c.x = sx(c.x)); return {y:l.y, x:0, lines:[l]}; });
+  boxes.forEach(b=>{ const ls = anCells(per.get(b)); ls.forEach(l=>{ l.box = b; l.cells.forEach(c=>c.x = sx(c.x - b.x0 + 38)); }); units.push({y:b.y1, x:b.x0, lines:ls}); });
+  units.sort((a,b)=>b.y-a.y || a.x-b.x);
+  return units.flatMap(u=>u.lines);
+}
 async function anGraphics(page, OPS){
   const ops = await page.getOperatorList();
   const mul = (a,b)=>[a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]];
@@ -2838,11 +2855,11 @@ const AN_COL = c=>{ const k = (c||[]).join(','); return k==='153,170,170' ? 0 : 
 /* wagon wheels: straight lines out from a centre; the 8 pale spokes give the boundary radius */
 function anWheels(gr){
   const lines = gr.filter(x=>x.op==='S' && !x.curve && !x.rect && x.pts.length===2);
-  const groups = {};
-  lines.forEach(l=>{ const [a,b] = l.pts, key = `${a[0].toFixed(0)},${a[1].toFixed(0)}`; (groups[key] = groups[key]||{c:a, l:[]}).l.push(l); });
-  return Object.values(groups).map(gp=>{
+  const groups = [];
+  lines.forEach(l=>{ const a = l.pts[0]; let gp = groups.find(g=>Math.abs(g.c[0]-a[0])<1.5 && Math.abs(g.c[1]-a[1])<1.5); if(!gp){ gp = {c:a, l:[]}; groups.push(gp); } gp.l.push(l); });
+  return groups.map(gp=>{
     const spokes = gp.l.filter(l=>(l.col||[]).join(',')==='213,223,198');
-    if(spokes.length<8) return null;
+    if(spokes.length<6) return null;
     const r = Math.max(...spokes.map(l=>Math.hypot(l.pts[1][0]-gp.c[0], l.pts[1][1]-gp.c[1])));
     const shots = gp.l.filter(l=>AN_COL(l.col)!==null).map(l=>{ const dx = (l.pts[1][0]-gp.c[0])/r, dy = (l.pts[1][1]-gp.c[1])/r;
       return [Math.round(Math.atan2(dy,dx)*180/Math.PI), Math.min(100, Math.round(Math.hypot(dx,dy)*100)), AN_COL(l.col)]; });
@@ -2877,21 +2894,23 @@ async function readAnalystPdf(pdf, OPS, onPage){
   const teamOf = t=>A.teams.find(x=>t===x || t.startsWith(x+' '));
   for(let pn=1; pn<=pdf.numPages; pn++){
     if(onPage) onPage(pn, pdf.numPages);
-    const page = await pdf.getPage(pn), tc = await page.getTextContent(), L = anCells(tc.items);
+    const page = await pdf.getPage(pn), tc = await page.getTextContent(), gr = await anGraphics(page, OPS), bxs = anBoxes(gr);
+    if(pn===1) A.small = bxs.length>0;
+    const L = anLines(tc.items, bxs, A.small);
     if(pn===1){
-      const t = L.find(l=>/ v /.test(l.text) && !/·/.test(l.text) && l.y>760); if(t) A.title = t.text;
-      const res = L.find(l=>/ won by | drawn| tied/i.test(l.text)); if(res) A.result = res.text.replace(/\s*\(.*$/,'');
-      L.forEach(l=>{ const m = l.text.match(/Venue (.+)$/); if(m) A.venue = m[1]; const d = l.text.match(/Date (\d{4}-\d{2}-\d{2})/); if(d) A.date = d[1]; });
       const cells = L.flatMap(l=>l.cells.map(c=>c.s));
+      const t = L.find(l=>/ v /.test(l.text) && !/·/.test(l.text) && l.y>760); if(t) A.title = t.cells.find(c=>/ v /.test(c.s)).s;
+      const res = cells.find(s=>/ won by | drawn| tied/i.test(s)); if(res) A.result = res.replace(/\s*\(.*$/,'');
+      cells.forEach(s=>{ const m = s.match(/Venue (.+)$/); if(m && !A.venue && !/^history/.test(m[1])) A.venue = m[1].split(' · ')[0]; const d = s.match(/Date (\d{4}-\d{2}-\d{2})/); if(d) A.date = d[1]; });
       const sides = cells.filter(s=>/ · [\d.]+ ov$/.test(s));
-      A.innings = cells.filter(s=>/^\d+\/\d+$/.test(s)).map((sc,i)=>({inn:i+1, score:sc, team:(sides[i]||'').replace(/ · .*$/,''), overs:(sides[i]||'').replace(/^.* · /,'').replace(/ ov$/,'')}));
+      A.innings = cells.filter(s=>/^\d+\/\d+$/.test(s)).slice(0, sides.length || 4).map((sc,i)=>({inn:i+1, score:sc, team:(sides[i]||'').replace(/ · .*$/,''), overs:(sides[i]||'').replace(/^.* · /,'').replace(/ ov$/,'')}));
       A.teams = [...new Set(A.innings.map(i=>i.team).filter(Boolean))];
     }
     const heads = [];
     L.forEach((l,i)=>{
       let m; const c0 = l.cells[0] || {x:0, s:''};
-      if((m = l.text.match(/^(.+?) \| inns (\d) · #(\d+) · (Right|Left)-hand$/))){ heads.push({kind:'bat', i, y:l.y, team, name:m[1], inn:+m[2], pos:+m[3], hand:m[4][0]}); inPlayer = true; return; }
-      if(l.cells.length===2 && L[i+1] && / ov · \d+-\d+ · econ/.test(L[i+1].text)){ heads.push({kind:'bowl', i, y:l.y, team, name:l.cells[0].s, type:l.cells[1].s}); inPlayer = true; return; }
+      if((m = l.text.match(/^(.+?) \| inns (\d) · #(\d+) · (Right|Left)-hand$/))){ heads.push({kind:'bat', i, y:l.y, box:l.box, team, name:m[1], inn:+m[2], pos:+m[3], hand:m[4][0]}); inPlayer = true; return; }
+      if(l.cells.length===2 && L[i+1] && / ov · \d+-\d+ · econ/.test(L[i+1].text)){ heads.push({kind:'bowl', i, y:l.y, box:l.box, team, name:l.cells[0].s, type:l.cells[1].s}); inPlayer = true; return; }
       if(/^\d+\. /.test(l.text)){ sub = ''; inPlayer = false; rec = null; field = null; return; }
       const tm = teamOf(l.text);
       if(tm && (l.text===tm || / (batting|bowling|in the field|captaincy in the field)$/.test(l.text))){ team = tm; sub = ''; inPlayer = false; rec = null; field = (/ in the field$/.test(l.text) && !/captaincy/.test(l.text)) ? (A.fielding[tm] = {items:{}, lapses:[]}) : null; return; }
@@ -2902,7 +2921,7 @@ async function readAnalystPdf(pdf, OPS, onPage){
         if(field.inLapse && c0.x>60){ if(/^Inns \d/.test(l.text)) field.lapses.push(l.text); else if(field.lapses.length) field.lapses[field.lapses.length-1] += ' '+l.text; return; }
         if(c0.x>200){ if(field.justSet){ field.items[field.justSet] += ' '+l.text; field.justSet = null; } else field.pending = ((field.pending||'')+' '+l.text).trim(); return; }
         field.justSet = null;
-        if(l.cells.length>=2){ field.items[c0.s] = l.cells.slice(1).map(c=>c.s).join(' '); return; }
+        if(l.cells.length>=2){ field.items[c0.s] = [field.pending, ...l.cells.slice(1).map(c=>c.s)].filter(Boolean).join(' '); field.pending = ''; return; }
         if(c0.x<70 && field.pending){ field.items[c0.s] = field.pending; field.pending = ''; field.justSet = c0.s; }
         return;
       }
@@ -2915,15 +2934,18 @@ async function readAnalystPdf(pdf, OPS, onPage){
       if(c0.x>=55 && c0.x<62 && l.cells.length>=2) listAdd(k, l.cells.map(c=>c.s).join(' | '));
     });
     if(!heads.length) continue;
-    const gr = await anGraphics(page, OPS), wheels = anWheels(gr), pitches = anPitches(gr);
+    const wheels = anWheels(gr), pitches = anPitches(gr);
     heads.forEach((h,hi)=>{
-      const nextY = hi+1<heads.length ? heads[hi+1].y : -1e9, nextI = hi+1<heads.length ? heads[hi+1].i : L.length;
-      const body = L.slice(h.i+1, nextI), mine = g=>g.y<=h.y+5 && g.y>nextY+5;
+      const same = heads.slice(hi+1).find(x=>x.box===h.box);
+      const nextY = h.box ? (same ? same.y : h.box.y0-1) : (hi+1<heads.length ? heads[hi+1].y : -1e9), nextI = hi+1<heads.length ? heads[hi+1].i : L.length;
+      const inX = g=>!h.box || (g.x>=h.box.x0 && g.x<=h.box.x1);
+      const body = L.slice(h.i+1, h.box && same ? same.i : (h.box ? L.length : nextI)).filter(l=>!h.box || l.box===h.box), mine = g=>g.y<=h.y+5 && g.y>nextY+5 && inX(g);
       if(h.kind==='bat'){
         const head = body[0] ? body[0].text : '';
-        const n = head.match(/^(\d+) \((\d+)\) SR ([\d.]+) · 4s (\d+) 6s (\d+) · boundary ([\d.]+)% · dot ([\d.]+)% · attack ([\d.]+)% · false ([\d.–-]+)%?/) || [];
+        const n = head.match(/^(\d+) \((\d+)\) SR ([\d.–-]+) · 4s (\d+) 6s (\d+) · boundary ([\d.–-]+)%? · dot ([\d.–-]+)%? · attack ([\d.–-]+)%? · false ([\d.–-]+)%?/) || [];
         const tStart = body.findIndex(l=>/^v bowler \| Type/.test(l.text));
-        const right = body.slice(1, tStart<0 ? body.length : tStart).map(l=>l.cells.filter(c=>c.x>=290).map(c=>c.s).join(' ')).filter(Boolean).join(' ');
+        const sa = body.flatMap(l=>l.cells).find(c=>/^Scoring areas:/.test(c.s)), rx = sa ? sa.x-15 : 290;
+        const right = body.slice(1, tStart<0 ? body.length : tStart).map(l=>l.cells.filter(c=>c.x>=rx).map(c=>c.s).join(' ')).filter(Boolean).join(' ');
         const rows = tStart<0 ? [] : body.slice(tStart+1).filter(l=>l.cells.length>=5 && /^\d+$/.test(l.cells[2].s)).map(l=>({bowler:anName(l.cells[0].s), type:l.cells[1].s, r:+l.cells[2].s, b:+l.cells[3].s, sr:l.cells[4].s, out:!!(l.cells[5] && l.cells[5].s==='W')}));
         const wh = wheels.find(w=>mine(w));
         A.bat.push({team:h.team, name:anName(h.name), inn:h.inn, pos:h.pos, hand:h.hand,
@@ -2933,13 +2955,19 @@ async function readAnalystPdf(pdf, OPS, onPage){
         A.types[anName(h.name)] = AN_SPIN.test(h.type) ? 'spin' : 'pace';
         const head = body[0] ? body[0].text : '';
         const n = head.match(/^([\d.]+) ov · (\d+)-(\d+) · econ ([\d.]+) · dots ([\d.]+)% · boundaries ([\d.]+)% · maidens (\d+) · wides (\d+), no-balls (\d+)/) || [];
-        const R = l=>l.cells.filter(c=>c.x>=200).map(c=>c.s);
+        const lh = body.flatMap(l=>l.cells).find(c=>c.s==='Length' || c.s==='v batter'), bx = lh ? Math.min(200, lh.x-5) : 200;
+        const R = l=>l.cells.filter(c=>c.x>=bx).map(c=>c.s);
         const lenStart = body.findIndex(l=>R(l)[0]==='Length'), vStart = body.findIndex(l=>R(l)[0]==='v batter');
         const lens = [];
-        if(lenStart>=0) body.slice(lenStart+1, vStart<0?body.length:vStart).forEach(l=>{ const c = R(l); if(c.length===6 && /^[\d.]+$/.test(c[1])) lens.push({len:c[0], pct:c[1], balls:+c[2], econ:c[3], w:+c[4], bdry:c[5]}); });
+        if(lenStart>=0){ const seg = body.slice(lenStart+1, vStart<0?body.length:vStart).map(R), lab = c=>c.length===1 && !/^[\d.]+$/.test(c[0]) && !/^(PROXY|Bdry|%)/.test(c[0]);
+          seg.forEach((c,k)=>{ const last = lens[lens.length-1];
+            if(lab(c) && last && /\bof$/.test(last.len)){ last.len += ' '+c[0]; return; }
+            if(c.length===6 && /^[\d.]+$/.test(c[1])) lens.push({len:c[0], pct:c[1], balls:+c[2], econ:c[3], w:+c[4], bdry:c[5]});
+            else if(c.length===5 && /^[\d.]+$/.test(c[0]) && /^\d+$/.test(c[1])){ const a = seg[k-1]&&lab(seg[k-1]) ? seg[k-1][0] : '', b = seg[k+1]&&lab(seg[k+1]) ? seg[k+1][0] : '';
+              lens.push({len:[a,b].filter(Boolean).join(' '), pct:c[0], balls:+c[1], econ:c[2], w:+c[3], bdry:c[4]}); } }); }
         const right = body.slice(1, vStart<0?body.length:vStart).map(l=>R(l).join(' ')).filter(Boolean).join(' ').replace(/PROXY:.*?(tracking\.|tracked)/g,'');
         const rows = vStart<0 ? [] : body.slice(vStart+1).map(R).filter(c=>c.length===5 && /^\d+$/.test(c[1])).map(c=>({batter:anName(c[0]), b:+c[1], r:+c[2], w:+c[3], sr:c[4]}));
-        const pm = pitches.find(p=>p.top<=h.y+5 && p.top>nextY);
+        const pm = pitches.find(p=>p.top<=h.y+5 && p.top>nextY && (!h.box || (p.left>=h.box.x0 && p.left<=h.box.x1)));
         const ws = wheels.filter(w=>mine(w)).sort((a,b)=>a.x-b.x);
         A.bowl.push({team:h.team, name:anName(h.name), type:h.type,
           overs:n[1]||'', w:+n[2]||0, r:+n[3]||0, econ:n[4]||'', dot:n[5]||'', bdry:n[6]||'', m:+n[7]||0, wd:+n[8]||0, nb:+n[9]||0,
@@ -3286,7 +3314,8 @@ function bowlingDoc(g, name){
   const cardInns = bowlInns(p||{}), cb = cardInns.reduce((m,x)=>m+num(x.b),0), cr = cardInns.reduce((m,x)=>m+num(x.r),0);
   const cw = [1,2].reduce((m,n)=>m+num((p||{})['i'+n+'w']),0), cm = [1,2].reduce((m,n)=>m+num((p||{})['i'+n+'m']),0);
   const cx = rateOut(rateSums(cardInns));
-  const strip = cb ? [['Overs',ballsToOvers(cb)],['Wickets',cw],['Runs',cr],['E/R',f2(cr/(cb/6))],['Dot %',cx.dotPct],['Balls per boundary',cx.bpb],['Maidens',cm]]
+  const strip = cb ? [['Overs',ballsToOvers(cb)],['Wickets',cw],['Runs',cr],['E/R',f2(cr/(cb/6))],['Dot %', cx.dotPct==='–' && a && has(a.dot) ? a.dot+'%' : cx.dotPct],
+      cx.bpb==='–' && a && has(a.bdry) ? ['Boundary %', a.bdry+'%'] : ['Balls per boundary',cx.bpb], ['Maidens', !cm && a ? a.m : cm]]
     : useBbb ? [['Overs',ballsToOvers(all.balls)],['Wickets',all.w],['Runs',all.r],['E/R',dER(all)],['Dot %',dDot(all.d,all.balls)],['Balls per boundary',dBPB(all.balls,all.f+all.s)],['Maidens',all.m]]
     : !a ? [] : [['Overs',a.overs],['Wickets',a.w],['Runs',a.r],['E/R',a.econ],['Dot %',a.dot+'%'],['Boundary %',a.bdry+'%'],['Maidens',a.m]];
   if(speed) strip.push(['Avg speed', `${Math.round(num(speed))}<small> km/h</small>`]);
@@ -3311,7 +3340,10 @@ function bowlingDoc(g, name){
   const spRows = spells.map(s=>[`${s.n===1?'1st':'2nd'} inns, spell ${spells.filter(x=>x.n===s.n).indexOf(s)+1}`, `${s.first}–${s.last}`, ballsToOvers(s.t.balls), s.t.m, s.t.r, s.t.w, dER(s.t), dDot(s.t.d,s.t.balls)]);
   const missingInn = a && ar.length && (a.notes['By innings']||'').match(/inns \d+:/g) && (a.notes['By innings'].match(/inns \d+:/g)||[]).length > inns.length;
   const spellHtml = (useBbb ? docTable(['Spell','Overs bowled','O','M','R','W','E/R','Dot %'], spRows) : '') + ((!useBbb || missingInn) && a && a.notes.Spells ? anNoteList(g, [['Analyst', a.notes.Spells]]) : '');
-  const innRows = useBbb ? docInnRows(g, 'bowl', inns, ({n,balls})=>{ const t = bowlFromBalls(balls); return [`${n===1?'1st':'2nd'} innings`, ballsToOvers(t.balls), t.m, t.r, t.w, dER(t), dDot(t.d,t.balls), dBPB(t.balls,t.f+t.s), t.wd+t.nb ? `${t.wd} wd, ${t.nb} nb` : '–']; }, 7) : [];
+  const cardRows = !useBbb && p ? (isLtd(g)?[1]:[1,2]).map(n=>{ const k = 'i'+n; if(!has(p[k+'o'])) return null; const balls = oversToBalls(p[k+'o']);
+    return [`${n===1?'1st':'2nd'} innings`, p[k+'o'], has(p[k+'m'])?p[k+'m']:'–', num(p[k+'r']), num(p[k+'w']), balls?f2(num(p[k+'r'])/(balls/6)):'–', has(p[k+'d'])&&balls?Math.round(num(p[k+'d'])/balls*100)+'%':'–', '–', '–']; }).filter(Boolean) : [];
+  if(cardRows.length>1 && a) cardRows.push(['Match', a.overs, a.m, a.r, a.w, a.econ, a.dot+'%', '–', `${a.wd} wd, ${a.nb} nb`]);
+  const innRows = !useBbb ? cardRows : docInnRows(g, 'bowl', inns, ({n,balls})=>{ const t = bowlFromBalls(balls); return [`${n===1?'1st':'2nd'} innings`, ballsToOvers(t.balls), t.m, t.r, t.w, dER(t), dDot(t.d,t.balls), dBPB(t.balls,t.f+t.s), t.wd+t.nb ? `${t.wd} wd, ${t.nb} nb` : '–']; }, 7);
   if(a && useBbb){ [...(a.notes['By innings']||'').matchAll(/inns (\d+): (\d+)-(\d+) \(([\d.]+)\)/g)].forEach(m=>{ const inn = g.analyst.innings.find(i=>i.inn===+m[1]); if(!inn || inns.some(i=>i.n===inn.n)) return;
     const row = innRows.find(r=>r[0]===`${inn.n===1?'1st':'2nd'} innings`); if(row) row.splice(1, row.length-1, m[4], '–', m[3], m[2], f2(num(m[3])/(oversToBalls(m[4])/6)), '–', '–', '–'); }); }
   if(a && useBbb && innRows.some(r=>r[2]==='–' && r[1]!=='–')) innRows.push(['Match', a.overs, a.m, a.r, a.w, a.econ, a.dot+'%', '–', `${a.wd} wd, ${a.nb} nb`]);
