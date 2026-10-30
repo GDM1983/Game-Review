@@ -508,17 +508,17 @@
 </datalist>
 <datalist id="dl-players"></datalist>
 <script>
-/* ============================= JSONBIN CONFIG =============================
-   Storage layout (keeps every bin small):
-     index bin  -> seasons list, custom labels and logo
-     season bin -> season notes, milestone types, bowling tabs, game bin ids
-     game bin   -> one match review each
-   Leave JSONBIN_INDEX_BIN_ID blank and the app creates the bins on first save,
-   then shows the index bin id in Settings. Paste it here to open the same data
-   on any device. Everything is also saved in this browser as a fallback. */
-const JSONBIN_API_KEY      = '';
-const JSONBIN_INDEX_BIN_ID = '';
-const JB = 'https://api.jsonbin.io/v3';
+/* ============================= CLOUD STORAGE (Firebase) =============================
+   Storage layout (keeps every document small), all in the shared Queensland Cricket Firebase project:
+     matchReview/index      -> seasons list, custom labels and logo
+     matchReview/<season>   -> season notes, milestone types, bowling tabs, game ids
+     matchReview/<game>     -> one match review each
+     matchReviewPublic/<id> -> a public copy of one match's ball-by-ball data, opened from player review links
+   Coaches on the coach list sign in to open and save. The player review links need no sign-in.
+   Everything is also saved in this browser as a fallback. */
+const COLL = 'matchReview', PUB = 'matchReviewPublic';
+const LEGACY_JB = 'https://api.jsonbin.io/v3';           // only used by Account > Import from JSONBin
+const LEGACY_INDEX_BIN = '6ab64511ac6210605af3d36c';     // the old index bin
 const LS_DATA = 'qb2xi-review:data:v1';
 const LS_CFG  = 'qb2xi-review:cfg:v1';
 
@@ -574,18 +574,11 @@ function wtpScale(v){ return v ? L('wtp.s'+v) : ''; }
 
 /* ============================= STATE ============================= */
 let db = null;
-let cfg = loadCfg();
 let view = {name:'dashboard', gameId:null, tab:'summary', stab:'trends', player:null, metric:null, addingMetric:false};
 const openPlayers = new Set();
 let dirty = new Set();
 let saveTimer = null, pushing = false, syncState = 'local';
 
-function loadCfg(){
-  let c = {};
-  try{ c = JSON.parse(localStorage.getItem(LS_CFG)||'{}'); }catch(e){}
-  return { apiKey: c.apiKey!==undefined ? c.apiKey : JSONBIN_API_KEY, binId: c.binId || JSONBIN_INDEX_BIN_ID };
-}
-function saveCfg(){ try{ localStorage.setItem(LS_CFG, JSON.stringify(cfg)); }catch(e){} }
 
 /* ============================= FACTORIES ============================= */
 function uid(){ return Math.random().toString(36).slice(2,10); }
@@ -757,40 +750,32 @@ function normDb(){
 }
 
 /* ============================= STORAGE ============================= */
-/* Turns a failed JSONBin response into a plain-English reason. */
 let lastSyncError = '';
-async function jbError(r, what){
-  let msg = '';
-  try{ const j = await r.json(); msg = j.message || ''; }catch(e){}
-  let why;
-  if(r.status===401) why = 'the API key was not accepted. Check it in Settings';
-  else if(r.status===404) why = 'the bin could not be found. Check the Index bin id in Settings';
-  else if(r.status===413 || /size|large|limit.*kb/i.test(msg)) why = 'the data is larger than your JSONBin plan allows for one bin';
-  else if(r.status===429 || /request/i.test(msg) && /exhaust|limit|quota/i.test(msg)) why = 'your JSONBin plan has run out of requests';
-  else if(r.status===403) why = msg ? `JSONBin refused it: ${msg}` : 'JSONBin refused it (403)';
-  else why = `JSONBin error ${r.status}${msg?': '+msg:''}`;
-  const e = new Error(`${what}: ${why}`); e.friendly = `${what}: ${why}`; e.status = r.status; return e;
+function cloudUser(){ return window.qcFB && window.qcFB.user ? window.qcFB.user() : null; }
+function cloudOn(){ return !!cloudUser(); }
+function waitFB(){ return new Promise((res, rej)=>{ let n = 0; (function t(){ if(window.qcFB && window.qcAuth) return res(window.qcFB); if(++n > 120) return rej(new Error('The cloud service could not be loaded. Are you offline?')); setTimeout(t, 100); })(); }); }
+function cloudError(e, what){
+  if(e && e.friendly) return e;
+  const x = new Error(`${what}: ${window.qcAuth ? window.qcAuth.explain(e) : (e&&e.message)||'problem'}`); x.friendly = x.message;
+  x.status = (e && e.code==='permission-denied') ? 403 : undefined; return x;
 }
-function netError(e, what){ if(e && e.friendly) return e; const x = new Error(`${what}: no connection to jsonbin.io. Check the internet connection, or whether this network blocks jsonbin.io`); x.friendly = x.message; return x; }
-function jbHeaders(json){ const h={'X-Master-Key':cfg.apiKey}; if(json) h['Content-Type']='application/json'; return h; }
-async function jbGet(bin){
-  let r; try{ r = await fetch(`${JB}/b/${bin}/latest`, {headers:jbHeaders()}); }catch(e){ throw netError(e,'Loading'); }
-  if(!r.ok) throw await jbError(r, 'Loading');
-  return (await r.json()).record;
+function secureId(prefix){ const a = new Uint8Array(12); crypto.getRandomValues(a); return prefix + [...a].map(b=>b.toString(36).padStart(2,'0')).join(''); }
+async function jbGet(id){
+  let d; try{ d = await window.qcFB.docGet(COLL, id); }catch(e){ throw cloudError(e, 'Loading'); }
+  if(!d || !d.json){ const e = new Error('Loading: that item was not found'); e.friendly = e.message; e.status = 404; throw e; }
+  return JSON.parse(d.json);
 }
-async function jbPut(bin, data, what){
-  let r; try{ r = await fetch(`${JB}/b/${bin}`, {method:'PUT', headers:jbHeaders(true), body:JSON.stringify(data)}); }catch(e){ throw netError(e, what||'Saving'); }
-  if(!r.ok) throw await jbError(r, what||'Saving');
+async function jbPut(id, data, what){
+  const json = JSON.stringify(data);
+  if(json.length > 900000){ const e = new Error(`${what||'Saving'}: this item is too large to store (${Math.round(json.length/1024)} KB)`); e.friendly = e.message; throw e; }
+  try{ await window.qcFB.docSet(COLL, id, { json, updated:new Date().toISOString(), by:(cloudUser()||{}).email||'' }); }catch(e){ throw cloudError(e, what||'Saving'); }
 }
-async function jbCreate(name, data){
-  const h = jbHeaders(true); h['X-Bin-Name']=name.slice(0,120); h['X-Bin-Private']='true';
-  let r; try{ r = await fetch(`${JB}/b`, {method:'POST', headers:h, body:JSON.stringify(data)}); }catch(e){ throw netError(e, 'Creating a bin'); }
-  if(!r.ok) throw await jbError(r, 'Creating a bin');
-  return (await r.json()).metadata.id;
-}
-function jbDelete(bin){
-  if(!bin || !cfg.apiKey) return;
-  fetch(`${JB}/b/${bin}`, {method:'DELETE', headers:jbHeaders()}).catch(()=>{});
+async function jbCreate(name, data){ const id = secureId('b'); await jbPut(id, data, 'Creating'); return id; }
+function jbDelete(id){ if(!id || !cloudOn()) return; window.qcFB.docDelete(COLL, id).catch(()=>{}); }
+async function pubPut(id, data, what){
+  const json = JSON.stringify(data);
+  if(json.length > 900000){ const e = new Error(`${what||'Saving'}: the review links data is too large to store`); e.friendly = e.message; throw e; }
+  try{ await window.qcFB.docSet(PUB, id, { json, updated:new Date().toISOString() }); }catch(e){ throw cloudError(e, what||'Saving'); }
 }
 function indexRecord(){
   return {app:'qb-2xi-season-review', version:2, activeSeasonId:db.activeSeasonId, activeProgram:P(), programSeason:db.programSeason||{}, labels:db.labels||{}, logo:db.logo||'',
@@ -813,12 +798,12 @@ function markAllDirty(){
 }
 function schedule(){
   db.pending = true;
-  setSync(cfg.apiKey ? 'saving' : 'local');
+  setSync(cloudOn() ? 'saving' : 'signin');
   clearTimeout(saveTimer);
   saveTimer = setTimeout(()=>{ writeLocal(); pushCloud(); }, 2500);
 }
 async function pushCloud(){
-  if(!cfg.apiKey){ db.pending=false; writeLocal(); setSync('local'); return; }
+  if(!cloudOn()){ db.pending=true; writeLocal(); setSync('signin'); return; }
   if(pushing){ clearTimeout(saveTimer); saveTimer = setTimeout(pushCloud, 800); return; }
   if(!dirty.size){ setSync('cloud'); return; }
   pushing = true; setSync('saving');
@@ -834,7 +819,7 @@ async function pushCloud(){
       }
       if(!g._bin){ g._bin = await jbCreate(`QC ${progShort(s.programId)} ${s.name} R${g.round} ${g.opponent}`, g); work.add('s:'+sid); }
       if(g.reviewBin){ const snap = JSON.stringify(reviewSnapshot(g, s));
-        if(snapSent.get(g.id)!==snap){ try{ await jbPut(g.reviewBin, JSON.parse(snap), 'Updating the review links'); snapSent.set(g.id, snap); }catch(e){} } }
+        if(snapSent.get(g.id)!==snap){ try{ await pubPut(g.reviewBin, JSON.parse(snap), 'Updating the review links'); snapSent.set(g.id, snap); }catch(e){} } }
     }
     for(const key of [...work].filter(k=>k.startsWith('s:'))){
       const s = db.seasons.find(x=>x.id===key.slice(2));
@@ -845,17 +830,7 @@ async function pushCloud(){
       }
       if(!s._bin){ s._bin = await jbCreate(`QC ${progShort(s.programId)} season ${s.name}`, seasonRecord(s)); work.add('i'); }
     }
-    if(work.has('i')){
-      let replaced = false;
-      if(cfg.binId){
-        try{ await jbPut(cfg.binId, indexRecord(), 'Saving settings, labels and logo'); }
-        catch(e){ if(e.status!==404) throw e; cfg.binId = ''; replaced = true; }
-      }
-      if(!cfg.binId){
-        cfg.binId = await jbCreate('QB 2nd XI Season Review index', indexRecord()); saveCfg();
-        if(replaced) alert(`Your index bin had been deleted in JSONBin, so a new one was created.\n\nNew Index bin id: ${cfg.binId}\n\nEnter this new id in Settings on your other devices.`);
-      }
-    }
+    if(work.has('i')) await jbPut('index', indexRecord(), 'Saving settings, labels and logo');
     db.pending = dirty.size>0;
     lastSyncError = '';
     writeLocal();
@@ -884,10 +859,16 @@ async function loadSeason(s){
 async function boot(){
   let local = null;
   try{ local = JSON.parse(localStorage.getItem(LS_DATA)||'null'); }catch(e){}
-  if(cfg.apiKey && cfg.binId){
+  try{ await waitFB(); await Promise.race([window.qcFB.ready, new Promise(r=>setTimeout(r, 8000))]); }catch(e){ console.warn(e); }
+  if(cloudOn()){
     try{
-      const idx = await jbGet(cfg.binId);
-      if(local && local.pending && Array.isArray(local.seasons)){
+      let idx = null;
+      try{ idx = await jbGet('index'); }catch(e){ if(e.status!==404) throw e; }
+      if(!idx){
+        // nothing in the cloud yet: send up whatever is on this device
+        const have = local && Array.isArray(local.seasons);
+        db = have ? local : freshDb(); normDb(); if(have) markAllDirty();
+      }else if(local && local.pending && Array.isArray(local.seasons)){
         db = local; normDb(); markAllDirty();
       }else{
         db = {activeSeasonId:(local&&local.activeSeasonId)||idx.activeSeasonId, activeProgram:(local&&local.activeProgram)||idx.activeProgram,
@@ -898,15 +879,17 @@ async function boot(){
         await loadSeason(S());
         writeLocal();
       }
+      lastSyncError = '';
       setSync(dirty.size ? 'saving' : 'cloud');
     }catch(e){
       console.warn(e);
+      lastSyncError = (e && e.friendly) || (e && e.message) || '';
       db = local || freshDb(); normDb(); setSync('error');
     }
   }else{
     db = local || freshDb(); normDb();
-    if(cfg.apiKey && local) markAllDirty();
-    else setSync(cfg.apiKey ? 'cloud' : 'local');
+    if(!local){ dirty.clear(); clearTimeout(saveTimer); db.pending = false; }   // a blank starter database must never be uploaded over real data
+    setSync('signin');
   }
   render();
 }
@@ -1124,7 +1107,7 @@ function wtpAverages(s){
 function gameWtpAvg(g){ const v=WTP_KEYS.map(k=>g.wtp[k].rating).filter(x=>x>0); return v.length ? v.reduce((a,b)=>a+b,0)/v.length : 0; }
 
 /* ============================= SYNC STATUS / TOAST ============================= */
-const SYNC_TEXT = {cloud:'Saved to JSONBin', saving:'Saving…', local:'Saved in this browser', error:'Not saved to JSONBin yet, safe in this browser'};
+const SYNC_TEXT = {cloud:'Saved to the cloud', saving:'Saving…', local:'Saved in this browser', signin:'Not signed in, safe in this browser', error:'Not saved to the cloud yet, safe in this browser'};
 function setSync(st){
   syncState = st;
   const el = document.getElementById('sync');
@@ -1133,7 +1116,7 @@ function setSync(st){
 function syncInner(){
   const err = syncState==='error' && lastSyncError
     ? `<span style="display:block;margin-top:3px;color:var(--red);font-size:11.5px;max-width:640px;">${esc(lastSyncError)}</span>` : '';
-  return `<span class="save-dot ${syncState==='cloud'?'':syncState}"></span><span>${SYNC_TEXT[syncState]}${syncState==='error'?` <button class="link-btn" onclick="retrySync()">Try again</button>`:''}${err}</span>`;
+  return `<span class="save-dot ${syncState==='cloud'?'':(syncState==='signin'?'local':syncState)}"></span><span>${SYNC_TEXT[syncState]}${syncState==='signin'?` <button class="link-btn" onclick="signInNow()">Sign in</button>`:''}${syncState==='error'?` <button class="link-btn" onclick="retrySync()">Try again</button>`:''}${err}</span>`;
 }
 function retrySync(){ markAllDirty(); }
 let toastTimer=null;
@@ -1593,7 +1576,7 @@ async function switchSeason(id){
   const s = S();
   if(s.stub){
     document.getElementById('app').innerHTML = `<div class="loading">Loading ${esc(s.name)}&hellip;</div>`;
-    try{ await loadSeason(s); }catch(e){ console.warn(e); toast('Could not load that season from JSONBin'); }
+    try{ await loadSeason(s); }catch(e){ console.warn(e); toast('Could not load that season from the cloud'); }
   }
   writeLocal(); render();
 }
@@ -1646,7 +1629,7 @@ function deleteMatch(){
   if(!confirm(`Delete ${gameTitle(g)} and all of its reviews? This can't be undone.`)) return;
   s.games = s.games.filter(x=>x.id!==g.id);
   [...dirty].forEach(k=>{ if(k.endsWith(':'+g.id)) dirty.delete(k); });
-  jbDelete(g._bin);
+  jbDelete(g._bin); if(g.reviewBin && cloudOn()) window.qcFB.docDelete(PUB, g.reviewBin).catch(()=>{});
   touchSeason(s); go('dashboard'); toast('Match deleted');
 }
 function addItem(list){
@@ -2745,19 +2728,14 @@ function reviewSnapshot(g, s){
 function appBase(){ return location.href.split(/[?#]/)[0]; }
 async function publishReviews(quiet){
   const g = G();
-  if(!cfg.apiKey){ if(!quiet) toast('Add your JSONBin key in Settings first'); return; }
+  if(!cloudOn()){ if(!quiet) toast('Sign in first (tap Sign in at the bottom of the page)'); return; }
   const players = [...g.batters.filter(p=>hasBallData(g,'bat',p.name)).map(p=>['batters','bat',p]), ...g.bowlers.filter(p=>hasBallData(g,'bowl',p.name)).map(p=>['bowlers','bowl',p])];
   if(!players.length){ if(!quiet) toast('Fill the match from ball by ball first'); return; }
   const btn = document.getElementById('pub-btn'); if(btn){ btn.disabled = true; btn.textContent = 'Creating links…'; }
   try{
     const data = reviewSnapshot(g); snapSent.set(g.id, JSON.stringify(data));
-    if(g.reviewBin){ try{ await jbPut(g.reviewBin, data, 'Updating the review links'); }catch(e){ g.reviewBin = ''; } }
-    if(!g.reviewBin){
-      const h = jbHeaders(true); h['X-Bin-Name'] = `QC review links ${gameTitle(g)}`.slice(0,120); h['X-Bin-Private'] = 'false';
-      const r = await fetch(`${JB}/b`, {method:'POST', headers:h, body:JSON.stringify(data)});
-      if(!r.ok) throw await jbError(r, 'Creating the review links');
-      g.reviewBin = (await r.json()).metadata.id;
-    }
+    if(g.reviewBin){ try{ await pubPut(g.reviewBin, data, 'Updating the review links'); }catch(e){ g.reviewBin = ''; } }
+    if(!g.reviewBin){ const id = secureId('r'); await pubPut(id, data, 'Creating the review links'); g.reviewBin = id; }
     players.forEach(([list, kind, p])=>{
       const label = kind==='bat' ? 'Batting review' : 'Bowling review';
       const url = `${appBase()}?review=${g.reviewBin}&k=${kind}&p=${encodeURIComponent(pkey(p.name))}`;
@@ -2772,9 +2750,15 @@ async function publishReviews(quiet){
 async function showSharedReview(q){
   document.getElementById('app').innerHTML = '<div class="loading">Loading review…</div>';
   try{
-    const r = await fetch(`${JB}/b/${encodeURIComponent(q.get('review'))}/latest`, {headers:{'X-Bin-Meta':'false'}});
-    if(!r.ok) throw new Error();
-    let g = await r.json(); if(g && g.record) g = g.record;
+    const rid = q.get('review');
+    await waitFB();
+    let g = null;
+    try{ const d = await window.qcFB.docGet(PUB, rid); if(d && d.json) g = JSON.parse(d.json); }catch(e){}
+    if(!g){   // links made before the move still point at the old public JSONBin copy
+      const r = await fetch(`${LEGACY_JB}/b/${encodeURIComponent(rid)}/latest`, {headers:{'X-Bin-Meta':'false'}});
+      if(!r.ok) throw new Error();
+      g = await r.json(); if(g && g.record) g = g.record;
+    }
     g.batters = g.batters||[]; g.bowlers = g.bowlers||[]; g.bbb = g.bbb||{};
     const k = q.get('k'), key = q.get('p');
     let pages = [];
@@ -4308,14 +4292,9 @@ function renderSettings(openGroup){
         </div>
 
         <div class="modal-section">
-          <h3>JSONBin</h3>
-          <div class="hint" style="margin-top:0;">${SYNC_TEXT[syncState]}.${syncState==='error'&&lastSyncError?` <b style="color:var(--red)">${esc(lastSyncError)}.</b>`:''}${cfg.binId?` Index bin <span class="code">${esc(cfg.binId)}</span>. Use this id on another device to open the same data.`:''}</div>
-          <label class="field-label">API key (X-Master-Key)</label>
-          <input type="password" id="cfg-key" value="${esc(cfg.apiKey)}" autocomplete="off">
-          <label class="field-label">Index bin id</label>
-          <input type="text" id="cfg-bin" value="${esc(cfg.binId)}">
-          <div class="btn-row" style="margin-top:12px;"><button class="primary-btn" onclick="saveConnection()">Save and connect</button><button class="ghost-btn" onclick="reloadCloud()">Reload from JSONBin</button></div>
-          ${binsInUseHtml()}
+          <h3>Cloud</h3>
+          <div class="hint" style="margin-top:0;">${SYNC_TEXT[syncState]}.${syncState==='error'&&lastSyncError?` <b style="color:var(--red)">${esc(lastSyncError)}.</b>`:''}${cloudOn()?` Signed in as ${esc(cloudUser().email)}.`:''}</div>
+          <div class="btn-row" style="margin-top:12px;"><button class="primary-btn" onclick="closeModal();${cloudOn()?'openAccountMR()':'signInNow()'}">${cloudOn()?'Account and import':'Sign in'}</button><button class="ghost-btn" onclick="reloadCloud()">Reload from the cloud</button></div>
         </div>
 
         <div class="modal-section">
@@ -4326,17 +4305,6 @@ function renderSettings(openGroup){
       </div>
     </div>
   </div>`;
-}
-/* Lists every bin this device is using, so old ones can be safely deleted on jsonbin.io. */
-function binsInUseHtml(){
-  if(!cfg.apiKey || !cfg.binId) return '';
-  const rows = [['Index', cfg.binId]];
-  db.seasons.forEach(se=>{
-    if(se._bin) rows.push([`Season ${se.name}${se.archived?' (archived)':''}`, se._bin]);
-    (se.games||[]).forEach(g=>{ if(g._bin) rows.push([`${se.name}: ${gameTitle(g)}`, g._bin]); });
-  });
-  return `<details class="lbl-group" style="margin-top:14px;"><summary>Bins in use on this device (${rows.length})</summary>
-    <div class="lbl-rows">${rows.map(([l,id])=>`<div class="lbl-row"><span>${esc(l)}</span><span class="code">${esc(id)}</span></div>`).join('')}</div></details>`;
 }
 function setLabel(k, v, gi){
   v = (v||'').trim();
@@ -4392,27 +4360,52 @@ function deleteSeason(id){
   if(db.activeSeasonId===id){ const ps = PS(); db.activeSeasonId = (ps.find(x=>!x.archived)||ps[0]).id; db.programSeason[P()] = db.activeSeasonId; }
   touchIndex(); go('dashboard'); renderSettings();
 }
-async function saveConnection(){
-  cfg.apiKey = document.getElementById('cfg-key').value.trim();
-  const newBin = document.getElementById('cfg-bin').value.trim();
-  const changed = newBin !== cfg.binId;
-  cfg.binId = newBin; saveCfg(); closeModal();
-  if(!cfg.apiKey){ setSync('local'); render(); toast('Saving in this browser only'); return; }
-  if(cfg.binId && changed){
-    dirty.clear();
-    try{ localStorage.removeItem(LS_DATA); }catch(e){}
-    document.getElementById('app').innerHTML = '<div class="loading">Connecting to JSONBin&hellip;</div>';
-    view = resetView('dashboard');
-    await boot(); toast(syncState==='error'?'Could not reach that bin':'Connected to JSONBin');
-  }else{ markAllDirty(); render(); }
-}
 async function reloadCloud(){
-  if(!cfg.apiKey || !cfg.binId){ toast('Nothing saved to JSONBin yet'); return; }
+  if(!cloudOn()){ toast('Sign in first'); return; }
   if(dirty.size && !confirm('Some changes have not synced yet. Reload anyway and discard them?')) return;
   dirty.clear(); try{ const l=JSON.parse(localStorage.getItem(LS_DATA)||'null'); if(l){ l.pending=false; localStorage.setItem(LS_DATA, JSON.stringify(l)); } }catch(e){}
-  closeModal(); document.getElementById('app').innerHTML = '<div class="loading">Loading from JSONBin&hellip;</div>';
+  closeModal(); document.getElementById('app').innerHTML = '<div class="loading">Loading from the cloud&hellip;</div>';
   await boot();
 }
+function signInNow(){ window.qcAuth.showSignIn('Sign in to open and save Match Review.').then(()=>{}).catch(()=>{}); }
+function openAccountMR(){
+  if(!cloudOn()){ signInNow(); return; }
+  window.qcAuth.openAccount({
+    backup(){ exportBackup(); },
+    importJsonbin:{ label:'Bring in your old Match Review data', field:'Index bin ID', fieldValue:LEGACY_INDEX_BIN, async run(key, binId, say){
+      binId = binId || LEGACY_INDEX_BIN;
+      const get = async (id, pub)=>{ const r = await fetch(`${LEGACY_JB}/b/${encodeURIComponent(id)}/latest`, {headers: pub ? {'X-Bin-Meta':'false'} : {'X-Master-Key':key, 'X-Bin-Meta':'false'}});
+        if(!r.ok) throw new Error(`JSONBin said ${r.status}`+(r.status===401||r.status===403?' \u2014 check the key.':r.status===404?' \u2014 bin not found.':'.')); let j = await r.json(); return (j && j.record) ? j.record : j; };
+      say('Reading the index\u2026');
+      const idx = await get(binId);
+      if(!idx || !Array.isArray(idx.seasons)) throw new Error('That bin does not look like the Match Review index.');
+      let existing = null; try{ existing = await jbGet('index'); }catch(e){}
+      if(existing && existing.seasons && existing.seasons.length && !confirm('Match Review already has data in the cloud. Replace it with the old JSONBin data?')) return 'Cancelled \u2014 nothing changed.';
+      let ns = 0, ng = 0, nl = 0, failed = [];
+      for(const se of idx.seasons){
+        if(!se._bin) continue;
+        try{
+          say(`Copying season ${se.name}\u2026`);
+          const rec = await get(se._bin); await jbPut(se._bin, rec, 'Copying a season'); ns++;
+          for(const ref of (rec.games||[])){
+            if(!ref._bin) continue;
+            try{
+              say(`Copying ${se.name}: game ${ng+1}\u2026`);
+              const g = await get(ref._bin); await jbPut(ref._bin, g, 'Copying a game'); ng++;
+              if(g.reviewBin){ try{ const pubData = await get(g.reviewBin, true); await pubPut(g.reviewBin, pubData, 'Copying review links'); nl++; }catch(e){ failed.push('review links for '+gameTitle(g)); } }
+            }catch(e){ failed.push('a game in '+se.name+' ('+e.message+')'); }
+          }
+        }catch(e){ failed.push('season '+se.name+' ('+e.message+')'); }
+      }
+      await jbPut('index', idx, 'Copying the index');
+      dirty.clear(); try{ localStorage.removeItem(LS_DATA); }catch(e){}
+      view = resetView('dashboard'); await boot();
+      return `Imported ${ns} seasons, ${ng} games and ${nl} review-link sets.`+(failed.length?' Could not copy: '+failed.join('; ')+'.':'');
+    }}
+  });
+}
+window.addEventListener('qc-signed-in', ()=>{ if(db){ try{ writeLocal(); }catch(e){} } boot(); });
+window.addEventListener('qc-signed-out', ()=>{ setSync('signin'); });
 function exportBackup(){
   const blob = new Blob([JSON.stringify(db, null, 2)], {type:'application/json'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
@@ -4434,7 +4427,176 @@ function importBackup(file){
 }
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
 
-{ const q = new URLSearchParams(location.search); if(q.get('review')) showSharedReview(q); else boot(); }
+document.addEventListener('DOMContentLoaded', ()=>{ const q = new URLSearchParams(location.search); if(q.get('review')) showSharedReview(q); else boot(); });
 </script>
+<!-- ==================== FIREBASE (sign-in + cloud database) ==================== -->
+<script type="module">
+  /* The Firebase web config is meant to be public (it only names the project).
+     What protects the data is the Firestore security rules plus the coach sign-ins. */
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail }
+    from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+  import { getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, runTransaction }
+    from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+  const app = initializeApp({
+    apiKey: "AIzaSyAiVNZO7GNDi7tAx0XC7A-HGFBrSYrhg2s",
+    authDomain: "qc-session-planner.firebaseapp.com",
+    projectId: "qc-session-planner",
+    storageBucket: "qc-session-planner.firebasestorage.app",
+    messagingSenderId: "877201142937",
+    appId: "1:877201142937:web:da043fba4a27c3c205b408"
+  });
+  const auth = getAuth(app), db = getFirestore(app);
+  let current = null, markReady;
+  const ready = new Promise(function(r){ markReady = r; });
+  onAuthStateChanged(auth, function(u){
+    current = u; markReady();
+    window.dispatchEvent(new CustomEvent("qc-auth", { detail: { email: u ? u.email : "" } }));
+  });
+  function conflict(){ const e = new Error("conflict"); e.code = "conflict"; return e; }
+
+  window.qcFB = {
+    ready: ready,
+    user: function(){ return current; },
+    signIn: function(email, pass){ return signInWithEmailAndPassword(auth, email, pass).then(function(c){ return c.user; }); },
+    createAccount: function(email, pass){ return createUserWithEmailAndPassword(auth, email, pass).then(function(c){ return c.user; }); },
+    signOut: function(){ return signOut(auth); },
+    resetPassword: function(email){ return sendPasswordResetEmail(auth, email); },
+    /* generic documents: { ...fields } or null if it does not exist */
+    docGet: async function(coll, id){ const s = await getDoc(doc(db, coll, id)); return s.exists() ? s.data() : null; },
+    docList: async function(coll){ const r = await getDocs(collection(db, coll)); return r.docs.map(function(d){ return { id: d.id, data: d.data() }; }); },
+    docSet: function(coll, id, data){ return setDoc(doc(db, coll, id), data); },
+    docDelete: function(coll, id){ return deleteDoc(doc(db, coll, id)); },
+    /* write only if the stored 'rev' still equals expectedRev (0 = must not exist yet); otherwise throws code "conflict" */
+    docSetIfRev: function(coll, id, expectedRev, data){
+      const ref = doc(db, coll, id);
+      return runTransaction(db, async function(tx){
+        const s = await tx.get(ref);
+        const have = s.exists() ? (s.data().rev || 0) : 0;
+        if(have !== expectedRev) throw conflict();
+        tx.set(ref, data);
+      });
+    }
+  };
+</script>
+
+<!-- ==================== COACH SIGN-IN WINDOW (shared by all Queensland Cricket pages) ==================== -->
+<style>
+.qcOv{position:fixed;inset:0;background:rgba(20,15,25,.5);display:flex;align-items:center;justify-content:center;z-index:100000;padding:16px;font-family:inherit}
+.qcBox{background:#fff;color:#22222A;border-radius:12px;max-width:420px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.3)}
+.qcHead{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #E7E2E5;font-weight:800;color:#79133E}
+.qcBody{padding:14px 16px}.qcBody p{font-size:13px;color:#5B5B66;margin:0 0 10px;line-height:1.4}
+.qcBody label{display:block;font-size:12px;font-weight:700;color:#5B5B66;margin:8px 0}
+.qcBody input{display:block;width:100%;box-sizing:border-box;margin-top:4px;padding:10px;font-size:16px;border:1px solid #cfc7cc;border-radius:8px;color:#22222A;background:#fff}
+.qcMsg{font-size:13px;min-height:18px;margin:6px 0;color:#5B5B66}.qcMsg.bad{color:#C0392B}.qcMsg.ok{color:#2E7D5B}
+.qcBtns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.qcBtns button{padding:10px 14px;font-size:14px;border-radius:8px;border:1px solid #79133E;background:#fff;color:#79133E;font-weight:700;cursor:pointer}
+.qcBtns button.main{background:#79133E;color:#fff}
+.qcHr{border:0;border-top:1px solid #E7E2E5;margin:14px 0}
+</style>
+<script>
+/* qcAuth: ensureAuth() asks for a coach sign-in when needed (only after a tap, never on its own);
+   openAccount(opts) shows who is signed in with Sign out / backup / import buttons. */
+(function(){
+  function fb(){ return window.qcFB || null; }
+  function err(code, msg){ var e = new Error(msg || code); e.code = code; return e; }
+  function authMsg(e){
+    var c = (e && e.code) || '';
+    if(/invalid-credential|wrong-password|user-not-found|invalid-email|missing-password/.test(c)) return 'That email or password is not right.';
+    if(/too-many-requests/.test(c)) return 'Too many tries. Wait a few minutes, or use the reset link.';
+    if(/network-request-failed/.test(c)) return 'No connection. Check your internet and try again.';
+    if(/user-disabled/.test(c)) return 'This account has been switched off. Ask the admin.';
+    if(/email-already-in-use/.test(c)) return 'That email already has an account. Type your password and tap Sign in, or tap the reset link.';
+    if(/weak-password/.test(c)) return 'Choose a longer password (at least 6 characters).';
+    return (e && e.message) || 'Could not sign in.';
+  }
+  function el(html){ var d = document.createElement('div'); d.className = 'qcOv'; d.innerHTML = html; document.body.appendChild(d); return d; }
+  var pending = null;
+  function showSignIn(why){
+    if(pending) return pending;
+    pending = new Promise(function(resolve, reject){
+      var ov = el('<div class="qcBox"><div class="qcHead"><span>Coach sign in</span><button type="button" data-a="x" style="border:0;background:none;font-size:18px;cursor:pointer">&#10005;</button></div><div class="qcBody">' +
+        '<p>' + (why || 'Sign in to open and save this page.') + '</p>' +
+        '<label>Email<input id="qcE" type="email" autocomplete="username" spellcheck="false"></label>' +
+        '<label>Password<input id="qcP" type="password" autocomplete="current-password"></label><div class="qcMsg" id="qcM"></div>' +
+        '<p>First time? Type your email and a password you choose, then tap Create account. Your email must already be on the coach list.</p>' +
+        '<div class="qcBtns"><button data-a="create" type="button">Create account</button><button data-a="reset" type="button">Email me a reset link</button><button data-a="x" type="button">Cancel</button><button class="main" data-a="go" type="button">Sign in</button></div></div></div>');
+      var em = ov.querySelector('#qcE'), pw = ov.querySelector('#qcP'), msg = ov.querySelector('#qcM');
+      function say(t, bad){ msg.textContent = t; msg.className = 'qcMsg ' + (bad ? 'bad' : 'ok'); }
+      function done(){ document.removeEventListener('keydown', key, true); ov.remove(); pending = null; }
+      function cancel(){ done(); reject(err('signin-cancelled', 'Sign-in was cancelled')); }
+      function ok(u){ done(); resolve(u); try{ window.dispatchEvent(new Event('qc-signed-in')); }catch(x){} }
+      function go(){ var e = em.value.trim().toLowerCase(), p = pw.value; if(!e || !p){ say('Enter your email and password.', true); return; }
+        say('Signing in…'); fb().signIn(e, p).then(ok).catch(function(x){ say(authMsg(x), true); }); }
+      function key(ev){ if(ev.key === 'Escape'){ ev.stopPropagation(); cancel(); } else if(ev.key === 'Enter' && ov.contains(document.activeElement)){ ev.preventDefault(); go(); } }
+      document.addEventListener('keydown', key, true);
+      ov.addEventListener('click', function(ev){
+        var a = ev.target.closest && ev.target.closest('[data-a]'); if(!a) return; var act = a.getAttribute('data-a');
+        if(act === 'x') cancel(); else if(act === 'go') go();
+        else if(act === 'create'){ var e = em.value.trim().toLowerCase(), p = pw.value;
+          if(!e || p.length < 6){ say('Enter your email and choose a password of at least 6 characters.', true); return; }
+          say('Creating your account…'); fb().createAccount(e, p).then(ok).catch(function(x){ say(authMsg(x), true); }); }
+        else if(act === 'reset'){ var r = em.value.trim(); if(!r){ say('Type your email first, then tap the reset link.', true); return; }
+          fb().resetPassword(r).then(function(){ say('If that email has an account, a reset link is on its way.'); }).catch(function(x){ say(authMsg(x), true); }); }
+      });
+      setTimeout(function(){ em.focus(); }, 30);
+    });
+    return pending;
+  }
+  function waitFB(){
+    return new Promise(function(res, rej){ var n = 0; (function t(){ if(fb()) return res(fb()); if(++n > 100) return rej(err('offline', 'The sign-in service could not be loaded. Are you offline?')); setTimeout(t, 100); })(); });
+  }
+  function ensureAuth(why){
+    var gesture = !!(navigator.userActivation && navigator.userActivation.isActive);
+    return waitFB().then(function(f){ return f.ready; }).then(function(){ var f = fb();
+      if(f.user()) return f.user();
+      if(!gesture) throw err('signin-required', 'Sign in to continue');
+      return showSignIn(why);
+    });
+  }
+  function explain(e){
+    var c = (e && e.code) || '';
+    if(c === 'permission-denied') return 'This account is not on the coach list. Ask the admin to add your email.';
+    if(c === 'signin-required') return 'Sign in to continue.';
+    if(c === 'signin-cancelled') return 'Sign-in was cancelled.';
+    if(c === 'unavailable' || c === 'offline' || /network/.test(c)) return 'No connection to the cloud right now.';
+    return (e && e.message) || 'Something went wrong.';
+  }
+  /* opts: { title, backup:function(), importJsonbin:{label,run:function(key)->Promise}, importFile:function(file) } */
+  function openAccount(opts){
+    opts = opts || {}; var f = fb(); if(!f){ alert('The sign-in service could not be loaded.'); return; }
+    f.ready.then(function(){
+      var u = f.user(); if(!u){ showSignIn(); return; }
+      var h = '<div class="qcBox"><div class="qcHead"><span>Account</span><button type="button" data-a="x" style="border:0;background:none;font-size:18px;cursor:pointer">&#10005;</button></div><div class="qcBody">' +
+        '<p>Signed in as <b>' + u.email + '</b>.</p><div class="qcBtns">' +
+        (opts.backup ? '<button data-a="backup" type="button">Download backup</button>' : '') +
+        '<button data-a="out" type="button">Sign out</button></div>';
+      if(opts.importJsonbin){
+        h += '<hr class="qcHr"><p><b>' + opts.importJsonbin.label + '</b><br>Type your old JSONBin key to bring the old data across. The key is used once and not stored.</p>' +
+          '<label>JSONBin key<input id="qcK" type="password" autocomplete="off" spellcheck="false"></label>' +
+          (opts.importJsonbin.field ? '<label>' + opts.importJsonbin.field + '<input id="qcK2" type="text" value="' + (opts.importJsonbin.fieldValue || '') + '" autocomplete="off" spellcheck="false" autocapitalize="off"></label>' : '') + '<div class="qcBtns"><button data-a="imp" type="button">Import from JSONBin</button></div>';
+      }
+      h += '<div class="qcMsg" id="qcAm"></div></div></div>';
+      var ov = el(h), msg = ov.querySelector('#qcAm');
+      function say(t, bad){ msg.textContent = t; msg.className = 'qcMsg ' + (bad ? 'bad' : 'ok'); }
+      ov.addEventListener('click', function(ev){
+        if(ev.target === ov){ ov.remove(); return; }
+        var a = ev.target.closest && ev.target.closest('[data-a]'); if(!a) return; var act = a.getAttribute('data-a');
+        if(act === 'x') ov.remove();
+        else if(act === 'out'){ f.signOut().then(function(){ ov.remove(); window.dispatchEvent(new Event('qc-signed-out')); }); }
+        else if(act === 'backup'){ try{ opts.backup(); say('Backup downloaded.'); }catch(x){ say(explain(x), true); } }
+        else if(act === 'imp'){
+          var k = (ov.querySelector('#qcK').value || '').trim(); if(!k){ say('Type your JSONBin key first.', true); return; }
+          say('Importing…'); Promise.resolve().then(function(){ return opts.importJsonbin.run(k, (ov.querySelector('#qcK2')||{value:''}).value.trim(), function(t){ say(t); }); })
+            .then(function(m){ say(m || 'Imported.'); ov.querySelector('#qcK').value = ''; }).catch(function(x){ say(explain(x), true); });
+        }
+      });
+    });
+  }
+  window.qcAuth = { ensureAuth: ensureAuth, showSignIn: showSignIn, openAccount: openAccount, explain: explain };
+})();
+</script>
+
 </body>
 </html>
