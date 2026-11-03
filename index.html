@@ -496,6 +496,14 @@
   .pl-figs i{font-style:normal;font-weight:600;color:var(--ink-soft);margin-right:5px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;}
   .pl-tabs{margin-top:14px;} .pl-tabs button.off:not(.on){border-style:dashed;}
   .pl-sec-top{display:flex;justify-content:flex-end;margin-top:12px;}
+  .sb-box{background:var(--bone);border-radius:12px;padding:12px 14px;margin:14px 0 6px;}
+  .sb-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+  .sb-head .mini-label span{font-weight:500;color:var(--ink-soft);}
+  .sb-first button{padding:6px 12px;font-size:12px;}
+  .sb-days{display:flex;flex-wrap:wrap;gap:10px 22px;margin-bottom:10px;}
+  .sb-day{display:flex;align-items:center;gap:10px;flex-wrap:wrap;} .sb-day b{font-size:13px;color:var(--turf);min-width:42px;}
+  .sb-day label{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--ink-soft);}
+  .sb-day input{width:64px;padding:6px 8px;}
 </style>
 </head>
 <body>
@@ -640,7 +648,7 @@ const CATCH_GRADES = [['g1','Grade 1'],['g2','Grade 2'],['g3','Grade 3']];
 function blankFielding(){ return {g1t:'', g1d:'', g2t:'', g2d:'', g3t:'', g3d:'', ro:'', dh:'', bs:'', notes:''}; }
 function newGame(round, format){
   return {id:uid(), round:String(round||''), format:format||'multi', opponent:'', venue:'', date:'', result:'', scorecardUrl:'', sessions:blankSessions(), sessionResults:{}, dec:{},
-    battedFirst:'', blockSets:{od:blankBlockSet('od')}, t20:{bat:blankT20Side(), bowl:blankT20Side()}, standards:blankStandards(), fielding:blankFielding(), pfield:{},
+    battedFirst:'', blockSets:{od:blankBlockSet('od')}, t20:{bat:blankT20Side(), bowl:blankT20Side()}, standards:blankStandards(), fielding:blankFielding(), pfield:{}, sessBreaks:{}, firstBat:'',
     scores:{q1:'',o1:'',q2:'',o2:''}, summary:'', positives:'', learnings:'', focus:'',
     battingSummary:'', batters:[], partnerships:[], batMilestones:[],
     bowlingSummary:'', bowlMetrics:{}, bowlers:[], bowlMilestones:[],
@@ -1559,6 +1567,63 @@ function tallyInner(){
   return `<span class="tally won">Won ${t.won}</span><span class="tally even">Even ${t.even}</span><span class="tally lost">Lost ${t.lost}</span>`;
 }
 function tallyText(t){ return `Won ${t.won}, even ${t.even}, lost ${t.lost}`; }
+
+/* ---- Sessions from the ball by ball: you give the over each session ended at, the deliveries do the rest ---- */
+const BREAKS = [[1,'Lunch'],[2,'Tea'],[3,'Stumps']];
+function firstBatOf(g){ if(g.firstBat) return g.firstBat; const a = g.analyst && g.analyst.innings && g.analyst.innings[0]; return a ? (a.qld ? 'bat' : 'bowl') : ''; }
+function setBreak(key, v){ const g = G(); g.sessBreaks = g.sessBreaks||{}; g.sessBreaks[key] = v; touchGame(g); }
+function setFirstBat(v){ const g = G(); g.firstBat = g.firstBat===v ? '' : v; touchGame(g); render(); }
+function sessBreaksHtml(g){
+  if(!g.bbb || !Object.keys(g.bbb).length) return '';
+  const fb = firstBatOf(g), br = g.sessBreaks||{};
+  const days = DAYS.filter(d=>d<=2 || BREAKS.some(([n])=>has(br[`d${d}s${n}`])) || BREAKS.some(([n])=>has(br[`d${d-1}s${n}`])));
+  return `<div class="sb-box">
+    <div class="sb-head"><div class="mini-label">Session breaks</div>
+      <div class="seg sb-first">${[['bat','QLD batted first'],['bowl',`${esc(oppShort(g))} batted first`]].map(([v,l])=>`<button class="${fb===v?'on':''}" onclick="setFirstBat('${v}')">${l}</button>`).join('')}</div></div>
+    <div class="sb-days">${days.map(d=>`<div class="sb-day"><b>Day ${d}</b>${BREAKS.map(([n,l])=>`<label><span>${l}</span><input type="text" inputmode="decimal" value="${esc(br[`d${d}s${n}`]||'')}" oninput="setBreak('d${d}s${n}',this.value)"></label>`).join('')}</div>`).join('')}</div>
+    <button class="primary-btn" onclick="fillSessions()">Fill sessions from ball by ball</button>
+  </div>`;
+}
+function fillSessions(){
+  const g = G(), fb = firstBatOf(g), br = g.sessBreaks||{};
+  if(!fb){ toast('Choose who batted first'); return; }
+  const order = fb==='bat' ? ['bat1','bowl1','bat2','bowl2'] : ['bowl1','bat1','bowl2','bat2'];
+  const scoreKey = {bat1:'q1', bowl1:'o1', bat2:'q2', bowl2:'o2'};
+  const played = order.filter(k=>(g.bbb||{})[k] || has((g.scores||{})[scoreKey[k]]));
+  const missing = played.filter(k=>!(g.bbb||{})[k]), lastPasted = Math.max(...played.map((k,i)=>(g.bbb||{})[k]?i:-1));
+  if(missing.some(k=>played.indexOf(k) < lastPasted)){ toast(`Paste the ${missing.map(k=>`${k.startsWith('bat')?'QLD':oppShort(g)} ${k.endsWith('1')?'1st':'2nd'} innings`).join(' and ')} first`); return; }
+  const inns = played.filter(k=>(g.bbb||{})[k]).map(k=>{ const balls = bbbBalls(g.bbb[k]); let c = 0; balls.forEach(x=>{ if(!x.wd && !x.nb) c++; x.cum = c; }); return {role:k.slice(0,-1), n:k.slice(-1), balls}; });
+  const keys = []; DAYS.forEach(d=>BREAKS.forEach(([n])=>keys.push(`d${d}s${n}`)));
+  const lastSet = Math.max(-1, ...keys.map((k,i)=>has(br[k])?i:-1));
+  if(lastSet<0){ toast('Type the over each session ended at'); return; }
+  const blankBefore = keys.slice(0, lastSet).find(k=>!has(br[k]));
+  if(blankBefore){ const [, d, n] = blankBefore.match(/d(\d)s(\d)/); toast(`Add the Day ${d} ${BREAKS[n-1][1]} over`); return; }
+  let ci = 0, cj = 0; const out = {}; let filled = 0;
+  for(let k = 0; k < keys.length; k++){
+    const key = keys[k], segs = [];
+    const take = (i, j0, j1)=>{ if(j1<j0) return; const bs = inns[i].balls.slice(j0, j1+1); segs.push({role:inns[i].role, n:inns[i].n, balls:bs}); };
+    if(ci >= inns.length){ out[key] = []; continue; }
+    if(k <= lastSet){
+      const target = oversToBalls(br[key]); let done = false;
+      while(ci < inns.length && !done){
+        const bs = inns[ci].balls, cum0 = cj>0 ? bs[cj-1].cum : 0;   // an innings already past that over can't hold the break
+        let j = cum0 >= target ? -1 : bs.findIndex((x,jj)=>jj>=cj && x.cum>=target);
+        if(j>=0){ take(ci, cj, j); cj = j+1; if(cj>=bs.length){ ci++; cj = 0; } done = true; }
+        else { take(ci, cj, bs.length-1); ci++; cj = 0; }
+      }
+    } else if(k === lastSet+1){ while(ci < inns.length){ take(ci, cj, inns[ci].balls.length-1); ci++; cj = 0; } }
+    out[key] = segs;
+  }
+  Object.entries(out).forEach(([key, segs])=>{
+    const merged = []; segs.forEach(s=>{ const last = merged[merged.length-1]; if(last && last.role===s.role && last.n===s.n) last.balls.push(...s.balls); else merged.push({...s, balls:s.balls.slice()}); });
+    if(merged.length>2){ merged[1].balls.push(...merged.slice(2).flatMap(x=>x.balls)); merged.length = 2; }
+    g.sessions[key] = [0,1].map(i=>{ const s = merged[i]; if(!s || !s.balls.length) return blankSlot();
+      const runs = s.balls.reduce((m,x)=>m+x.bat+x.nb+x.wd+x.b+x.lb,0), wk = s.balls.filter(x=>x.out && !/retired/i.test(x.how)).length, legal = s.balls.filter(x=>!x.wd && !x.nb).length;
+      filled++; return Object.assign(blankSlot(), {role:s.role, runs:String(runs), wkts:String(wk), overs:ballsToOvers(legal), inn:s.n}); });
+  });
+  view.sessOpen = true; touchGame(g); render();
+  toast(`Sessions filled: ${plural(filled,'spell of play','spells of play')}`);
+}
 function md_sessionPanel(g){
   const open = !!view.sessOpen;
   const innMap = slotInnings(g);
@@ -1574,6 +1639,7 @@ function md_sessionPanel(g){
       <span class="tally-wrap" data-live="sessTally">${tallyInner()}</span>${chevron()}
     </button>
     <div class="sess-body">
+      ${sessBreaksHtml(g)}
       <div class="sess-scroll"><div class="sess-grid">
         <div></div>${DAYS.map(d=>`<div class="sess-dayhead">Day ${d}</div>`).join('')}
         ${SESSIONS.map(n=>`<div class="sess-label">Session ${n}</div>${DAYS.map(d=>{ const key=`d${d}s${n}`, res=(g.sessionResults||{})[key]||''; return `<div class="sess-cell" id="cell-${key}" data-res="${res}">
@@ -2284,7 +2350,7 @@ function parseBbbNew(lines){
     if(!/^\d{1,3}\.\d$/.test(lines[i])) continue;
     let j = i+1, sym = '';
     if(BBB_SYM.test(lines[j]||'')){ sym = lines[j]; j++; }
-    const m = (lines[j]||'').match(/^(.+?) to (.+?)$/); if(!m || m[2].length>40) continue;
+    const m = (lines[j]||'').match(/^(.+?) to (.+?)$/); if(!m || m[2].length>40 || /[,:;|]/.test(m[2])) continue;
     const res = /^\d{1,3}\.\d$/.test(lines[j+1]||'') ? '' : (lines[j+1]||'');
     const ball = {ov:lines[i], over:Math.floor(parseFloat(lines[i]))+1, bowler:m[1].trim(), batter:m[2].trim(), out:false, how:'', bat:0, nb:0, wd:0, b:0, lb:0};
     if(!bbbOutcome(sym, res, ball)) unread.push(`${lines[i]} ${sym} ${m[0]} ${res}`.replace(/\s+/g,' '));
@@ -2292,6 +2358,96 @@ function parseBbbNew(lines){
     balls.push(ball);
   }
   return {balls, cards, unread};
+}
+/* ---- Any other layout: commentary (one or several lines a ball) or a table/CSV export ---- */
+const BBB_WK = /^(?:out\b|w$|wkt|wicket|caught|bowled|lbw|leg before|stumped|run ?out|hit wicket|c\s+\S.*\bb\s+\S|b\s+[A-Z])/i;
+function bbbName(s){ s = (s||'').replace(/^[\s,;:\-–|]+|[\s,;:\-–|]+$/g,''); if(/^\*{3,}$/.test(s)) return '********';   // a name hidden on the page
+  return s.replace(/[†*]|\((?:c|wk|c & wk)\)/gi,'').replace(/\s+/g,' ').replace(/^[\s,;:\-–|]+|[\s,;:\-–|.]+$/g,'').trim(); }
+/* the result words of one ball: "FOUR", "2 runs", "1 wide", "no ball, 1 run", "OUT caught", "W", "1lb" ... */
+function bbbGenOutcome(text, ball){
+  const segs = (text||'').split(/\s*[,;|]\s*|\s+-\s+|\s+–\s+/).map(s=>s.trim()).filter(Boolean).slice(0, 3);
+  let ok = false;
+  segs.forEach((t, i)=>{ let m; const s = t.toLowerCase().replace(/[!.]+$/,'');
+    if(i<2 && BBB_WK.test(t)){ ball.out = true; const h = t.match(BBB_HOW); ball.how = h ? h[1].replace(/leg before/i,'LBW') : (ball.how||'Out'); ok = true; if((m = s.match(/(\d+)\s*runs?/))) ball.bat += +m[1]; return; }
+    if(/^(no run|dot( ball)?|\.|•|·|0)$/.test(s)){ ok = true; return; }
+    if(/^four\b|^boundary four/.test(s)){ ball.bat = 4; ok = true; return; }
+    if(/^six\b|^boundary six/.test(s)){ ball.bat = 6; ok = true; return; }
+    if((m = s.match(/^(\d+)?\s*(?:wides?|wd)\b(?:\s*\+?\s*(\d+))?/))){ ball.wd += +(m[1]||1) + +(m[2]||0); ok = true; return; }
+    if((m = s.match(/^(\d+)?\s*(?:no ?balls?|nb)\b(?:\s*\+?\s*(\d+))?/))){ ball.nb += 1; ball.bat += +(m[2]||0) + (m[1] && +m[1]>1 ? +m[1]-1 : 0); ok = true; return; }
+    if((m = s.match(/^(\d+)?\s*(?:leg ?byes?|lb)\b/))){ ball.lb += +(m[1]||1); ok = true; return; }
+    if((m = s.match(/^(\d+)?\s*(?:byes?|b)$/))){ ball.b += +(m[1]||1); ok = true; return; }
+    if((m = s.match(/^(\d+)\s*(?:runs?|r)?$/)) && i<2){ ball.bat += +m[1]; ok = true; return; }
+    if(i===0 && /^\d+\s*runs?\b/.test(s)){ ball.bat += +s.match(/^(\d+)/)[1]; ok = true; }
+  });
+  return ok;
+}
+const BBB_ID = /^(?:over\s*|ov\.?\s*|ball\s*)?(\d{1,3})\.([0-9])(?![\d.])\s*[:.\-–,|)]?\s*(.*)$/i;
+const BBB_DESC = /^(?:(out!?|wicket!?)\s*(?:([a-z ]+?)[.!:]\s*)?)?(.+?)\s+to\s+(.+?)(?:\s*(?:[:,;|]|\s-\s|\s–\s)\s*(.*))?$/i;
+function bbbDesc(t){
+  const m = (t||'').match(BBB_DESC); if(!m) return null;
+  const bw = bbbName(m[3]), bt = bbbName(m[4]);
+  if(!bw || !bt || bw.length>40 || bt.length>40 || /\d{2,}/.test(bw+bt)) return null;
+  return {bw, bt, pre:m[1] ? `OUT ${m[2]||''}`.trim() : '', res:(m[5]||'').trim()};
+}
+function parseBbbBlocks(lines){
+  const balls = [], cards = [], unread = [];
+  for(let i=0;i<lines.length;i++){
+    const id = lines[i].match(BBB_ID); if(!id) continue;
+    let rest = id[3], j = i+1, sym = '', d = null;
+    if(rest){ d = bbbDesc(rest); if(!d && BBB_SYM.test(rest.split(/\s+/)[0])){ sym = rest.split(/\s+/)[0]; d = bbbDesc(rest.slice(sym.length).trim()); } }
+    if(!d){ if(BBB_SYM.test(lines[j]||'')){ sym = lines[j]; j++; } d = bbbDesc(lines[j]||''); if(d) j++; }
+    if(!d) continue;
+    let res = [d.pre, d.res].filter(Boolean).join(', ');
+    if(!d.res){ const nx = lines[j]||''; if(nx && !BBB_ID.test(nx) && !bbbDesc(nx) && !/^Over \d+\./i.test(nx) && nx.length<90){ res = [res, nx].filter(Boolean).join(', '); j++; } }
+    const ball = {ov:`${id[1]}.${id[2]}`, over:+id[1]+1, bowler:d.bw, batter:d.bt, out:false, how:'', bat:0, nb:0, wd:0, b:0, lb:0};
+    const ok = bbbGenOutcome(res, ball) || bbbOutcome(sym, res, ball) || (sym && bbbOutcome(sym, '', ball));
+    if(!ok) unread.push(`${ball.ov} ${d.bw} to ${d.bt} ${res}`.trim());
+    if(ball.out){ const card = readCard(lines, j); if(card) cards.push(Object.assign(card, {short:ball.batter, how:ball.how})); }
+    balls.push(ball);
+  }
+  return {balls, cards, unread};
+}
+/* tables pasted from a spreadsheet or exported as CSV / tab separated: columns found by their headings */
+function parseBbbTable(text){
+  const rows = (text||'').split(/\r?\n|\r/).filter(l=>l.trim());
+  const delim = ['\t', ',', ';', '|'].map(d=>({d, n:rows.slice(0, 30).filter(r=>r.split(d).length>=3).length})).sort((a,b)=>b.n-a.n)[0];
+  if(!delim || delim.n < 3) return {balls:[], cards:[], unread:[]};
+  const split = r=>{ if(delim.d!==',') return r.split(delim.d).map(c=>c.trim()); const out = []; let cur = '', q = false; for(const ch of r){ if(ch==='"') q = !q; else if(ch===',' && !q){ out.push(cur.trim()); cur = ''; } else cur += ch; } out.push(cur.trim()); return out; };
+  const hi = rows.findIndex(r=>{ const c = split(r).map(x=>x.toLowerCase()); return c.some(x=>/bowler/.test(x)) && c.some(x=>/striker|batter|batsman|^bat$/.test(x) && !/non/.test(x)); });
+  if(hi<0) return {balls:[], cards:[], unread:[]};
+  const H = split(rows[hi]).map(x=>x.toLowerCase().replace(/[^a-z0-9. ]/g,'').trim());
+  const col = (re, not)=> H.findIndex(h=>re.test(h) && !(not && not.test(h)));
+  const first = split(rows[hi+1]||'');
+  const C = {ovb:-1, over:col(/^(over|overs|ov|over no)$/), ball:col(/^(ball|ball no|ball in over|delivery)$/),
+    bowler:col(/bowler/), batter:col(/striker|batter|batsman|^bat$/, /non/), runs:col(/^(runs?|bat runs|runs off bat|runs bat|batter runs|runs scored|r)$/),
+    extras:col(/^(extras?|extra runs|extras runs)$/), etype:col(/extra ?type|extras? kind|type of extra/), wd:col(/^(wides?|wd)$/), nb:col(/^(no ?balls?|nb)$/), lb:col(/^(leg ?byes?|lb)$/), by:col(/^(byes?)$/),
+    res:col(/^(result|outcome|event|score|ball result|code)$/), wk:col(/^(wicket|wickets|wkt|w|out|is wicket|dismissal)$/), how:col(/how ?out|dismissal type|mode|how$/)};
+  // an over.ball column (12.3) under whatever heading: Ball, Over, Ov.Ball, Delivery ...
+  C.ovb = H.findIndex((h,i)=>/ball|over|^ov|delivery/.test(h) && /^\d{1,3}\.\d$/.test(first[i]||''));
+  if(C.ovb>=0){ if(C.ball===C.ovb) C.ball = -1; if(C.over===C.ovb) C.over = -1; }
+  const body = rows.slice(hi+1).map(split).filter(c=>c.length>=3);
+  const overs = C.ovb<0 && C.over>=0 ? body.map(c=>parseInt(c[C.over])).filter(v=>!isNaN(v)) : [];
+  const oneBased = overs.length && Math.min(...overs)>=1;
+  const balls = [], unread = [];
+  body.forEach(c=>{
+    let ov = '';
+    if(C.ovb>=0){ const m = (c[C.ovb]||'').match(/(\d+)\.(\d)/); if(m) ov = `${m[1]}.${m[2]}`; }
+    else if(C.over>=0 && C.ball>=0){ const o = parseInt(c[C.over]), b = parseInt(c[C.ball]); if(!isNaN(o) && !isNaN(b)) ov = `${oneBased ? o-1 : o}.${b}`; }
+    const bw = bbbName(c[C.bowler]), bt = bbbName(c[C.batter]); if(!ov || !bw || !bt) return;
+    const ball = {ov, over:Math.floor(parseFloat(ov))+1, bowler:bw, batter:bt, out:false, how:'', bat:0, nb:0, wd:0, b:0, lb:0}; let ok = false;
+    const n = k=> C[k]>=0 ? (parseInt(c[C[k]])||0) : 0;
+    if(C.runs>=0 && /^\d+$/.test(c[C.runs]||'')){ ball.bat = n('runs'); ok = true; }
+    if(C.wd>=0 && n('wd')){ ball.wd = n('wd'); ok = true; } if(C.nb>=0 && n('nb')){ ball.nb = n('nb'); ok = true; }
+    if(C.lb>=0 && n('lb')){ ball.lb = n('lb'); ok = true; } if(C.by>=0 && n('by')){ ball.b = n('by'); ok = true; }
+    if(C.extras>=0 && n('extras') && !(ball.wd||ball.nb||ball.lb||ball.b)){ const t = (C.etype>=0 ? c[C.etype] : '').toLowerCase(), e = n('extras');
+      if(/w/.test(t) && !/^nb|no/.test(t)) ball.wd = e; else if(/n/.test(t)) ball.nb = e; else if(/l/.test(t)) ball.lb = e; else if(/b/.test(t)) ball.b = e; else ball.wd = e; ok = true; }
+    if(C.res>=0 && c[C.res]){ const r = c[C.res]; if(bbbGenOutcome(r, ball) || bbbOutcome(r.length<=5 ? r : '', r, ball)) ok = true; }
+    if(C.wk>=0 && c[C.wk] && !/^(n|no|0|false|-|–)$/i.test(c[C.wk])){ ball.out = true; ok = true; }
+    if(ball.out && C.how>=0 && c[C.how]){ const h = c[C.how].match(BBB_HOW); ball.how = h ? h[1] : c[C.how]; } else if(ball.out && !ball.how) ball.how = 'Out';
+    if(!ok) unread.push(c.join(' '));
+    balls.push(ball);
+  });
+  return {balls, cards:[], unread};
 }
 function parseBallByBall(text){
   // tidy whatever the browser copied: non-breaking and odd spaces, tabs, blank lines, "74.6 X to Y : 4 runs" on one line
@@ -2324,7 +2480,11 @@ function parseBallByBall(text){
     } else if(!parseOutcome(res, ball)) unread.push(`${l} ${d}`);
     balls.push(ball);
   }
-  if(!balls.length){ const nw = parseBbbNew(lines); balls.push(...nw.balls); cards.push(...nw.cards); unread.push(...nw.unread); }
+  // whichever reading finds the most deliveries wins: PlayCricket (either layout), any commentary, any table
+  const others = [parseBbbNew(lines), parseBbbBlocks(lines), parseBbbTable(text)];
+  const score = x=> x.balls.length - 2*x.unread.length;   // deliveries understood, not just found
+  const best = others.reduce((m,x)=> score(x) > score(m) + Math.max(2, m.balls.length*0.02) ? x : m, {balls, cards, unread});
+  if(best.balls!==balls){ balls.length = 0; cards.length = 0; unread.length = 0; balls.push(...best.balls); cards.push(...best.cards); unread.push(...best.unread); }
   // the page lists the latest ball first; put them in playing order
   const key = x=>{ const [o,b] = x.ov.split('.'); return +o*10 + +b; };
   if(balls.length>1 && key(balls[0]) >= key(balls[balls.length-1])) balls.reverse();
@@ -2463,6 +2623,7 @@ function bbbRead(text){
   const best = heads.slice().sort((a,b)=>Math.abs(a.runs-r.total)-Math.abs(b.runs-r.total))[0];
   bbb.r = r; bbb.side = qldBat ? 'bat' : 'bowl'; bbb.inn = isLtd(g) ? 1 : (best ? best.inn : 1); bbb.pageTotal = best ? best.runs : null;
   bbb.meta = bbbHeaderMeta(text);
+  const allHeads = bbbHeaderInnings(text); bbb.firstSame = allHeads.length && code ? allHeads[0].code===code : null;
   const list = bbb.side==='bat' ? r.batters : r.bowlers;
   bbb.rows = list.map(p=>({p, name: p.hidden ? '' : bbbMatchName(p.name, p.short), use: !p.hidden}));
   bbbPreview();
@@ -2529,6 +2690,7 @@ function bbbBalls(rec){
 
 function bbbApply(){
   const g = G(), s = S(), r = bbb.r, bat = bbb.side==='bat', n = bbb.inn, list = bat ? 'batters' : 'bowlers';
+  if(bbb.firstSame!==null && bbb.firstSame!==undefined && !g.firstBat) g.firstBat = bbb.firstSame ? bbb.side : (bat ? 'bowl' : 'bat');
   let filled = 0;
   bbb.rows.forEach(x=>{
     const name = (x.name||'').trim(); if(!name) return;
