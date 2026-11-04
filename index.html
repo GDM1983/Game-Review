@@ -251,6 +251,12 @@
   .tally.even{background:rgba(200,147,57,0.18);color:#8A6418;}
   .tally.lost{background:rgba(181,69,61,0.13);color:var(--red);}
   .sess-slot{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,.75fr) minmax(0,1.2fr);gap:4px;align-items:center;}
+  .dt-line.dt-edit{grid-template-columns:34px minmax(0,1fr) 44px auto;column-gap:4px;align-items:center;}
+  .sess-total input.dt-in{min-width:0;width:100%;border:1px solid transparent;background:transparent;border-radius:7px;padding:2px 4px;outline:none;box-shadow:none;}
+  .sess-total input.dt-in:hover,.sess-total input.dt-in:focus{border-color:rgba(110,27,60,0.2);background:var(--paper);}
+  .sess-total input.dt-in.it-v{font-family:var(--serif);font-size:17px;font-weight:650;color:var(--turf);}
+  .sess-total input.dt-ov{font-size:12px;color:var(--ink-soft);text-align:center;}
+  .sess-total input.dt-in::placeholder{color:var(--ink-soft);opacity:.45;font-weight:500;}
   .sess-brk{display:grid;grid-template-columns:auto auto auto minmax(0,1.3fr) minmax(0,1fr);gap:4px;align-items:center;border-top:1px dashed var(--line);padding-top:6px;margin-top:2px;}
   .sess-brk span{font-size:11px;font-weight:700;color:var(--ink-soft);padding-right:2px;}
   .sess-brk input{padding:6px 3px;text-align:center;font-size:12.5px;background:var(--paper);font-variant-numeric:tabular-nums;min-width:0;}
@@ -1543,12 +1549,25 @@ function dayLines(g, d){
     if(!map[k]){ map[k] = {k, r:0, w:0, b:0, n:0}; order.push(map[k]); }
     map[k].r += num(sl.runs); map[k].w += num(sl.wkts); map[k].b += oversToBalls(sl.overs); map[k].n++;
   }));
-  return order.map(x=>({team: x.k[0]==='q' ? 'QLD' : oppShort(g), inn: x.k[1]==='2' ? '2nd inns' : '1st inns', score:`${x.w}/${x.r}`, overs: x.b ? ballsToOvers(x.b) : ''}));
+  return order.map(x=>({k:x.k, team: x.k[0]==='q' ? 'QLD' : oppShort(g), inn: x.k[1]==='2' ? '2nd inns' : '1st inns', score:`${x.w}/${x.r}`, overs: x.b ? ballsToOvers(x.b) : ''}));
 }
 function dayTotalInner(d){
-  const lines = dayLines(G(), +d);
-  if(!lines.length) return '<div class="it-empty">–</div>';
-  return lines.map(l=>`<div class="dt-line"><span class="it-team">${esc(l.team)}</span><span class="it-v">${esc(l.score)}</span><span class="dt-ov">${l.overs?`(${l.overs})`:''}</span><span class="dt-inn">${l.inn}</span></div>`).join('');
+  const g = G(); d = +d;
+  const lines = dayLines(g, d), order = dtOrder(g), have = lines.map(l=>l.k);
+  // the innings in play at the end of the day before (or the last one so far), and the one after it
+  let last = '';
+  for(let e = d; e >= 1 && !last; e--){ const ls = dayLines(g, e).map(l=>l.k); if(ls.length) last = order.filter(k=>ls.includes(k)).pop(); }
+  const want = new Set(have);
+  const lastDay = Math.max(0, ...DAYS.filter(e=>dayLines(g, e).length));
+  if(d > lastDay+1) return '<div class="it-empty">–</div>';
+  if(d >= lastDay){ if(last){ want.add(last); const nx = order[order.indexOf(last)+1]; if(nx) want.add(nx); } else want.add(order[0]); }
+  const shown = order.filter(k=>want.has(k));
+  const opp = oppShort(g);
+  return shown.map(k=>{ const l = lines.find(x=>x.k===k);
+    return `<div class="dt-line dt-edit"><span class="it-team">${esc(k[0]==='q'?'QLD':opp)}</span>
+      <input id="dt-${d}-${k}-s" class="dt-in it-v" type="text" inputmode="numeric" placeholder="–" aria-label="Day ${d} score" value="${esc(l?l.score:'')}" onchange="dtChanged(${d},'${k}')">
+      <input id="dt-${d}-${k}-o" class="dt-in dt-ov" type="text" inputmode="decimal" placeholder="ov" aria-label="Day ${d} overs" value="${esc(l?l.overs:'')}" onchange="dtChanged(${d},'${k}')">
+      <span class="dt-inn">${k[1]==='2' ? '2nd inns' : '1st inns'}</span></div>`; }).join('');
 }
 /* ---- Session results: won / even / lost ---- */
 const SR_OPTS = [['won','Won'],['even','Even'],['lost','Lost']];
@@ -1590,22 +1609,15 @@ function setBreak(key, v){ const g = G(); g.sessBreaks = g.sessBreaks||{}; g.ses
 function setFirstBat(v){ const g = G(); g.firstBat = g.firstBat===v ? '' : v; touchGame(g); render(); }
 function sessBreaksHtml(g){
   const fb = firstBatOf(g);
-  return `<div class="sb-head sb-only"><div class="mini-label">Type the score at each break and the session fills itself</div>
+  return `<div class="sb-head sb-only"><div class="mini-label">Who batted first</div>
       <div class="seg sb-first">${[['bat','QLD batted first'],['bowl',`${esc(oppShort(g))} batted first`]].map(([v,l])=>`<button class="${fb===v?'on':''}" onclick="setFirstBat('${v}')">${l}</button>`).join('')}</div></div>`;
 }
 /* ---- Sessions from the score at each break ----
-   The scoreboard at Lunch, Tea and Stumps (wickets/runs and overs of the innings in progress).
-   Each session is that score less the one before it. When an innings ends inside a session, the session
-   holds the rest of that innings (its final score less the last break) and the start of the next one. */
+   The bottom box of each day is the scoreboard: at Lunch, Tea or Stumps type each innings' score as it stands
+   (wickets/runs and overs). The session that just finished is that score less the one at the break before,
+   innings by innings, so a session where both teams batted takes both lines. */
 function brkParse(s){ const m = String(s||'').match(/(\d+)\s*[\/-]\s*(\d+)/); if(m) return (+m[1]>10 && +m[2]<=10) ? {w:+m[2], r:+m[1]} : {w:+m[1], r:+m[2]};   // 4/127 or 127/4
   const r = String(s||'').match(/^\s*(\d+)\s*$/); return r ? {w:0, r:+r[1]} : null; }
-function brkFinal(g, k){
-  const sk = {bat1:'q1', bowl1:'o1', bat2:'q2', bowl2:'o2'}[k], v = String((g.scores||{})[sk]||'').trim(); if(!v) return null;
-  let f = v.match(/(\d+)\s*\/\s*(\d+)/) ? {w:+RegExp.$1, r:+RegExp.$2} : (v.match(/^(\d+)d?-(\d+)/) ? {w:+RegExp.$1, r:+RegExp.$2} : (/^\d+$/.test(v) ? {w:10, r:+v} : null));
-  if(!f) return null;
-  const rec = (g.bbb||{})[k]; if(rec){ const bs = bbbBalls(rec); f.b = bs.filter(x=>!x.wd && !x.nb).length; }
-  return f;
-}
 /* overs at a score, from the ball by ball, when the overs box is left blank: the last ball before the score moved on */
 function brkOversAt(g, k, w, r){
   const rec = (g.bbb||{})[k]; if(!rec) return null;
@@ -1613,50 +1625,39 @@ function brkOversAt(g, k, w, r){
   bbbBalls(rec).forEach(x=>{ cr += x.bat+x.nb+x.wd+x.b+x.lb; if(x.out) cw++; if(!x.wd && !x.nb) legal++; if(cr===r && cw===w) hit = legal; });
   return hit;
 }
-function setBrk(key, field, v){ const g = G(); g.sessScores = g.sessScores||{}; const e = g.sessScores[key] = g.sessScores[key]||{}; e[field] = v; touchGame(g); }
-function setBrkSide(key, side){ const g = G(); g.sessScores = g.sessScores||{}; const e = g.sessScores[key] = g.sessScores[key]||{}; e.side = e.side===side ? '' : side; applyBreakScores(g); touchGame(g); render(); }
-function brkChanged(){ setTimeout(()=>{ const a = document.activeElement, id = a && a.id; const g = G(); applyBreakScores(g); touchGame(g); render();
-  if(id){ const el = document.getElementById(id); if(el){ el.focus(); try{ el.select(); }catch(e){} } } }, 0); }
-function applyBreakScores(g){
-  const ss = g.sessScores||{}, fb = firstBatOf(g) || 'bat';
-  const order = fb==='bat' ? ['bat1','bowl1','bat2','bowl2'] : ['bowl1','bat1','bowl2','bat2'];
-  const keys = []; DAYS.forEach(d=>SESSIONS.forEach(n=>keys.push(`d${d}s${n}`)));
-  let i = 0, prev = {w:0, r:0, b:0}; const sides = {};
-  for(const key of keys){
-    const e = ss[key], sc = e && brkParse(e.s); if(!sc) break;   // sessions fill up to the first break with no score
-    const b = has(e.ov) ? oversToBalls(e.ov) : null;
-    const fin = k=>brkFinal(g, order[k]);
-    const done = k=>{ const f = fin(k); return f && (k===i ? (prev.r>=f.r && prev.w>=f.w) : false); };
-    let j = i;
-    const smaller = sc.r < prev.r || sc.w < prev.w || (b!==null && prev.b!==null && b < prev.b);
-    const past = (()=>{ const f = fin(i); return f && (sc.r > f.r || sc.w > f.w); })();
-    if(e.side){ while(j < order.length && (!order[j].startsWith(e.side) || (j===i && (smaller || done(i) || past)))) j++; }
-    else if(done(i) || smaller || past) j = i+1;
-    if(j >= order.length) break;
-    const segs = [];
-    for(let k = i; k < j; k++){ const f = fin(k), p = k===i ? prev : {w:0, r:0, b:0};
-      segs.push(f ? {k, w:f.w-p.w, r:f.r-p.r, b:(f.b!=null && p.b!=null) ? f.b-p.b : null} : {k, w:null, r:null, b:null}); }
-    const p = j===i ? prev : {w:0, r:0, b:0};
-    let bb = b; if(bb===null){ const o = brkOversAt(g, order[j], sc.w, sc.r); if(o!==null) bb = o; }
-    segs.push({k:j, w:sc.w-p.w, r:sc.r-p.r, b:(bb!==null && p.b!==null) ? bb-p.b : null});
-    const keep = segs.filter(s=>!(s.k!==j && s.r===0 && s.w===0 && (s.b===0 || s.b===null))).slice(-2);
-    g.sessions[key] = [0,1].map(x=>{ const s = keep[x]; if(!s) return blankSlot(); const k = order[s.k];
-      return Object.assign(blankSlot(), {role:k.slice(0,-1), inn:k.slice(-1), runs: s.r===null ? '' : String(Math.max(0,s.r)), wkts: s.w===null ? '' : String(Math.max(0,s.w)), overs: s.b===null ? '' : ballsToOvers(Math.max(0,s.b))}); });
-    sides[key] = order[j].slice(0,-1);
-    i = j; prev = {w:sc.w, r:sc.r, b:bb};
-  }
-  BRK_SIDE = {id:g.id, s:sides};
+/* ---- Day totals typed during the day ----
+   Change a day total at a break and the difference from the sessions already filled that day goes into the
+   session being played: the first session of the day with nothing in it when the match is opened, and the
+   same one for every change until the match is opened again (so both teams' lines can be set at one break). */
+let DT_SEL = {};
+function dtOrder(g){ return firstBatOf(g)==='bowl' ? ['o1','q1','o2','q2'] : ['q1','o1','q2','o2']; }
+function dtKeyOf(sl, inn){ return (sl.role==='bat'?'q':'o') + (inn.get(sl)||1); }
+function dtFilled(sl){ return sl.role && (has(sl.runs) || has(sl.wkts) || has(sl.overs)); }
+function dtTarget(g, d){
+  if(DT_SEL[d]) return DT_SEL[d];
+  const empty = SESSIONS.find(n=>!g.sessions[`d${d}s${n}`].some(dtFilled));
+  return DT_SEL[d] = empty || 3;
 }
-let BRK_SIDE = {};
+function dtChanged(d, k){ setTimeout(()=>{
+  const a = document.activeElement, id = a && a.id, g = G();
+  const sv = (document.getElementById(`dt-${d}-${k}-s`)||{}).value||'', ov = (document.getElementById(`dt-${d}-${k}-o`)||{}).value||'';
+  const T = brkParse(sv), n = dtTarget(g, d), key = `d${d}s${n}`, inn = slotInnings(g);
+  let ow = 0, or = 0, ob = 0;
+  SESSIONS.forEach(m=>{ if(m===n) return; g.sessions[`d${d}s${m}`].forEach(sl=>{ if(dtFilled(sl) && dtKeyOf(sl, inn)===k){ ow += num(sl.wkts); or += num(sl.runs); ob += oversToBalls(sl.overs); } }); });
+  const slots = g.sessions[key];
+  let i = slots.findIndex(sl=>sl.role && dtKeyOf(sl, inn)===k);
+  if(!T){ if(i>=0) slots[i] = blankSlot(); }
+  else {
+    if(i<0) i = slots.findIndex(sl=>!dtFilled(sl)); if(i<0) i = 1;
+    slots[i] = Object.assign(blankSlot(), {role: k[0]==='q' ? 'bat' : 'bowl', inn: k[1], runs:String(Math.max(0, T.r-or)), wkts:String(Math.max(0, T.w-ow)),
+      overs: has(ov) ? ballsToOvers(Math.max(0, oversToBalls(ov)-ob)) : ''});
+    if(i===1 && !dtFilled(slots[0])){ slots[0] = slots[1]; slots[1] = blankSlot(); }
+  }
+  touchGame(g); render();
+  if(id){ const el = document.getElementById(id); if(el){ el.focus(); try{ el.select(); }catch(e){} } }
+}, 0); }
 function md_sessionPanel(g){
   const open = !!view.sessOpen;
-  if(g.sessScores && BRK_SIDE.id!==g.id) applyBreakScores(g);
-  const brkRow = (key, n)=>{ const e = (g.sessScores||{})[key]||{}, side = e.side || ((BRK_SIDE.id===g.id ? BRK_SIDE.s : {})[key]) || '';
-    return `<div class="sess-brk"><span>${BREAKS[n-1][1]}</span>
-      <button class="sb-side ${side==='bat'?'on-bat':''}" onclick="setBrkSide('${key}','bat')" title="QLD batting at the break">QLD</button><button class="sb-side ${side==='bowl'?'on-bowl':''}" onclick="setBrkSide('${key}','bowl')" title="${esc(oppShort(g))} batting at the break">${esc(oppShort(g))}</button>
-      <input id="brk-${key}-s" type="text" inputmode="numeric" placeholder="W/R" aria-label="Score at ${BREAKS[n-1][1]}" value="${esc(e.s||'')}" oninput="setBrk('${key}','s',this.value)" onchange="brkChanged()">
-      <input id="brk-${key}-o" type="text" inputmode="decimal" placeholder="Ov" aria-label="Overs at ${BREAKS[n-1][1]}" value="${esc(e.ov||'')}" oninput="setBrk('${key}','ov',this.value)" onchange="brkChanged()">
-    </div>`; };
   const innMap = slotInnings(g);
   const slot = (key,i)=>{ const sl=g.sessions[key][i]; const inn=innMap.get(sl); return `<div class="sess-slot" id="slot-${key}-${i}">
       <div class="bb"><button data-r="bat" class="${sl.role==='bat'?'on-bat':''}" onclick="setSessRole('${key}',${i},'bat')">Bat</button><button data-r="bowl" class="${sl.role==='bowl'?'on-bowl':''}" onclick="setSessRole('${key}',${i},'bowl')">Bowl</button>${sl.role?`<button class="inn ${sl.inn?'manual':''}" title="${sl.role==='bat'?'QLD':esc(oppShort(g))} ${innLabel(inn)}. Tap to change." aria-label="${innLabel(inn)}, tap to change" onclick="toggleSessInn('${key}',${i})">${inn===2?'2nd':'1st'}</button>`:''}</div>
@@ -1675,13 +1676,13 @@ function md_sessionPanel(g){
         <div></div>${DAYS.map(d=>`<div class="sess-dayhead">Day ${d}</div>`).join('')}
         ${SESSIONS.map(n=>`<div class="sess-label">Session ${n}</div>${DAYS.map(d=>{ const key=`d${d}s${n}`, res=(g.sessionResults||{})[key]||''; return `<div class="sess-cell" id="cell-${key}" data-res="${res}">
           <button class="sr-dot" onclick="cycleSessResult('${key}')" title="Session result: tap for won, again for even, again for lost" aria-label="Session result: ${res||'not set'}"></button>
-          ${slot(key,0)}${slot(key,1)}${brkRow(key, n)}</div>`; }).join('')}`).join('')}
+          ${slot(key,0)}${slot(key,1)}</div>`; }).join('')}`).join('')}
         <div class="sess-label">Day total</div>${DAYS.map(d=>`<div class="sess-total" data-live="dayTotal" data-arg="${d}">${dayTotalInner(d)}</div>`).join('')}
       </div></div>
     </div>
   </div>`;
 }
-function openMatch(id, tab){ view = resetView('match'); view.gameId=id; view.tab=tab||'summary'; openPlayers.clear(); render(); window.scrollTo(0,0); }
+function openMatch(id, tab){ DT_SEL = {}; view = resetView('match'); view.gameId=id; view.tab=tab||'summary'; openPlayers.clear(); render(); window.scrollTo(0,0); }
 function setTab(t){ view.tab = t; view.addingMetric=false; render(); }
 function setSTab(t){ view.stab = t; view.player = null; render(); }
 function openPlayer(disc, key){ view.stab = disc; view.player = key; render(); window.scrollTo(0,0); }
