@@ -1563,10 +1563,11 @@ function dayTotalInner(d){
   if(d >= lastDay){ if(last){ want.add(last); const nx = order[order.indexOf(last)+1]; if(nx) want.add(nx); } else want.add(order[0]); }
   const shown = order.filter(k=>want.has(k));
   const opp = oppShort(g);
-  return shown.map(k=>{ const l = lines.find(x=>x.k===k);
+  return shown.map(k=>{ const l = lines.find(x=>x.k===k), c = dtInnSum(g, k), cs = (c.w||c.r) ? `${c.w}/${c.r}` : '', co = c.b ? ballsToOvers(c.b) : '';
+    const ds = l ? l.score : '', dov = l ? l.overs : '';
     return `<div class="dt-line dt-edit"><span class="it-team">${esc(k[0]==='q'?'QLD':opp)}</span>
-      <input id="dt-${d}-${k}-s" class="dt-in it-v" type="text" inputmode="numeric" placeholder="–" aria-label="Day ${d} score" value="${esc(l?l.score:'')}" onchange="dtChanged(${d},'${k}')">
-      <input id="dt-${d}-${k}-o" class="dt-in dt-ov" type="text" inputmode="decimal" placeholder="ov" aria-label="Day ${d} overs" value="${esc(l?l.overs:'')}" onchange="dtChanged(${d},'${k}')">
+      <input id="dt-${d}-${k}-s" class="dt-in it-v" type="text" inputmode="numeric" placeholder="–" aria-label="Day ${d} score" value="${esc(ds)}" data-day="${esc(ds)}" data-cum="${esc(cs)}" onfocus="dtFocus(this)" onblur="dtBlur(this)" onchange="dtChanged(${d},'${k}','s')">
+      <input id="dt-${d}-${k}-o" class="dt-in dt-ov" type="text" inputmode="decimal" placeholder="ov" aria-label="Day ${d} overs" value="${esc(dov)}" data-day="${esc(dov)}" data-cum="${esc(co)}" onfocus="dtFocus(this)" onblur="dtBlur(this)" onchange="dtChanged(${d},'${k}','o')">
       <span class="dt-inn">${k[1]==='2' ? '2nd inns' : '1st inns'}</span></div>`; }).join('');
 }
 /* ---- Session results: won / even / lost ---- */
@@ -1626,35 +1627,50 @@ function brkOversAt(g, k, w, r){
   return hit;
 }
 /* ---- Day totals typed during the day ----
-   Change a day total at a break and the difference from the sessions already filled that day goes into the
-   session being played: the first session of the day with nothing in it when the match is opened, and the
-   same one for every change until the match is opened again (so both teams' lines can be set at one break). */
+   Tap a day total and it shows the innings score as the scoreboard has it (all days so far); type the new
+   scoreboard figure at the break. The session just finished gets that score less everything the innings already
+   has in other sessions, on any day, so an innings carried over from the day before is taken into account.
+   Leave the box and it goes back to showing the day's figure. */
 let DT_SEL = {};
 function dtOrder(g){ return firstBatOf(g)==='bowl' ? ['o1','q1','o2','q2'] : ['q1','o1','q2','o2']; }
 function dtKeyOf(sl, inn){ return (sl.role==='bat'?'q':'o') + (inn.get(sl)||1); }
 function dtFilled(sl){ return sl.role && (has(sl.runs) || has(sl.wkts) || has(sl.overs)); }
-function dtTarget(g, d){
-  if(DT_SEL[d]) return DT_SEL[d];
-  const empty = SESSIONS.find(n=>!g.sessions[`d${d}s${n}`].some(dtFilled));
-  return DT_SEL[d] = empty || 3;
+/* the innings' total over all its sessions, leaving one session out if asked */
+function dtInnSum(g, k, skip){
+  const inn = slotInnings(g), t = {w:0, r:0, b:0};
+  BRK_KEYS.forEach(key=>{ if(key===skip) return; g.sessions[key].forEach(sl=>{ if(dtFilled(sl) && dtKeyOf(sl, inn)===k){ t.w += num(sl.wkts); t.r += num(sl.runs); t.b += oversToBalls(sl.overs); } }); });
+  return t;
 }
-function dtChanged(d, k){ setTimeout(()=>{
+const BRK_KEYS = (()=>{ const k = []; DAYS.forEach(d=>SESSIONS.forEach(n=>k.push(`d${d}s${n}`))); return k; })();
+function dtFocus(el){ if(el.dataset.cum!==undefined && el.value===el.dataset.day){ el.value = el.dataset.cum; try{ el.select(); }catch(e){} } }
+function dtBlur(el){ if(el.dataset.cum!==undefined && el.value===el.dataset.cum) el.value = el.dataset.day; }
+function dtChanged(d, k, field){
+  const src = document.getElementById(`dt-${d}-${k}-${field}`), typed = src ? src.value : '';
+  setTimeout(()=>{
   const a = document.activeElement, id = a && a.id, g = G();
-  const sv = (document.getElementById(`dt-${d}-${k}-s`)||{}).value||'', ov = (document.getElementById(`dt-${d}-${k}-o`)||{}).value||'';
-  const T = brkParse(sv), n = dtTarget(g, d), key = `d${d}s${n}`, inn = slotInnings(g);
-  let ow = 0, or = 0, ob = 0;
-  SESSIONS.forEach(m=>{ if(m===n) return; g.sessions[`d${d}s${m}`].forEach(sl=>{ if(dtFilled(sl) && dtKeyOf(sl, inn)===k){ ow += num(sl.wkts); or += num(sl.runs); ob += oversToBalls(sl.overs); } }); });
-  const slots = g.sessions[key];
+  const now = dtInnSum(g, k);
+  const T = field==='s' ? brkParse(typed) : {w:now.w, r:now.r};
+  const ovTyped = field==='o' ? typed : (now.b ? ballsToOvers(now.b) : '');
+  const inn = slotInnings(g);
+  // which session: picked already this visit; a lower score than the innings has is a correction to its latest session here
+  let n = DT_SEL[d];
+  if(!n){
+    const here = SESSIONS.filter(m=>g.sessions[`d${d}s${m}`].some(sl=>dtFilled(sl) && dtKeyOf(sl, inn)===k));
+    if(T && here.length && (T.r < now.r || T.w < now.w)) n = here[here.length-1];
+    else n = SESSIONS.find(m=>!g.sessions[`d${d}s${m}`].some(dtFilled)) || 3;
+    DT_SEL[d] = n;
+  }
+  const key = `d${d}s${n}`, other = dtInnSum(g, k, key), slots = g.sessions[key];
   let i = slots.findIndex(sl=>sl.role && dtKeyOf(sl, inn)===k);
   if(!T){ if(i>=0) slots[i] = blankSlot(); }
   else {
     if(i<0) i = slots.findIndex(sl=>!dtFilled(sl)); if(i<0) i = 1;
-    slots[i] = Object.assign(blankSlot(), {role: k[0]==='q' ? 'bat' : 'bowl', inn: k[1], runs:String(Math.max(0, T.r-or)), wkts:String(Math.max(0, T.w-ow)),
-      overs: has(ov) ? ballsToOvers(Math.max(0, oversToBalls(ov)-ob)) : ''});
+    slots[i] = Object.assign(blankSlot(), {role: k[0]==='q' ? 'bat' : 'bowl', inn: k[1], runs:String(Math.max(0, T.r-other.r)), wkts:String(Math.max(0, T.w-other.w)),
+      overs: has(ovTyped) ? ballsToOvers(Math.max(0, oversToBalls(ovTyped)-other.b)) : ''});
     if(i===1 && !dtFilled(slots[0])){ slots[0] = slots[1]; slots[1] = blankSlot(); }
   }
   touchGame(g); render();
-  if(id){ const el = document.getElementById(id); if(el){ el.focus(); try{ el.select(); }catch(e){} } }
+  if(id){ const el = document.getElementById(id); if(el){ el.focus(); } }
 }, 0); }
 function md_sessionPanel(g){
   const open = !!view.sessOpen;
