@@ -1552,23 +1552,9 @@ function dayLines(g, d){
   return order.map(x=>({k:x.k, team: x.k[0]==='q' ? 'QLD' : oppShort(g), inn: x.k[1]==='2' ? '2nd inns' : '1st inns', score:`${x.w}/${x.r}`, overs: x.b ? ballsToOvers(x.b) : ''}));
 }
 function dayTotalInner(d){
-  const g = G(); d = +d;
-  const lines = dayLines(g, d), order = dtOrder(g), have = lines.map(l=>l.k);
-  // the innings in play at the end of the day before (or the last one so far), and the one after it
-  let last = '';
-  for(let e = d; e >= 1 && !last; e--){ const ls = dayLines(g, e).map(l=>l.k); if(ls.length) last = order.filter(k=>ls.includes(k)).pop(); }
-  const want = new Set(have);
-  const lastDay = Math.max(0, ...DAYS.filter(e=>dayLines(g, e).length));
-  if(d > lastDay+1) return '<div class="it-empty">–</div>';
-  if(d >= lastDay){ if(last){ want.add(last); const nx = order[order.indexOf(last)+1]; if(nx) want.add(nx); } else want.add(order[0]); }
-  const shown = order.filter(k=>want.has(k));
-  const opp = oppShort(g);
-  return shown.map(k=>{ const l = lines.find(x=>x.k===k), c = dtInnSum(g, k), cs = (c.w||c.r) ? `${c.w}/${c.r}` : '', co = c.b ? ballsToOvers(c.b) : '';
-    const ds = l ? l.score : '', dov = l ? l.overs : '';
-    return `<div class="dt-line dt-edit"><span class="it-team">${esc(k[0]==='q'?'QLD':opp)}</span>
-      <input id="dt-${d}-${k}-s" class="dt-in it-v" type="text" inputmode="numeric" placeholder="–" aria-label="Day ${d} score" value="${esc(ds)}" data-day="${esc(ds)}" data-cum="${esc(cs)}" onfocus="dtFocus(this)" onblur="dtBlur(this)" onchange="dtChanged(${d},'${k}','s')">
-      <input id="dt-${d}-${k}-o" class="dt-in dt-ov" type="text" inputmode="decimal" placeholder="ov" aria-label="Day ${d} overs" value="${esc(dov)}" data-day="${esc(dov)}" data-cum="${esc(co)}" onfocus="dtFocus(this)" onblur="dtBlur(this)" onchange="dtChanged(${d},'${k}','o')">
-      <span class="dt-inn">${k[1]==='2' ? '2nd inns' : '1st inns'}</span></div>`; }).join('');
+  const lines = dayLines(G(), +d);
+  if(!lines.length) return '<div class="it-empty">–</div>';
+  return lines.map(l=>`<div class="dt-line"><span class="it-team">${esc(l.team)}</span><span class="it-v">${esc(l.score)}</span><span class="dt-ov">${l.overs?`(${l.overs})`:''}</span><span class="dt-inn">${l.inn}</span></div>`).join('');
 }
 /* ---- Session results: won / even / lost ---- */
 const SR_OPTS = [['won','Won'],['even','Even'],['lost','Lost']];
@@ -1608,11 +1594,7 @@ const BREAKS = [[1,'Lunch'],[2,'Tea'],[3,'Stumps']];
 function firstBatOf(g){ if(g.firstBat) return g.firstBat; if(g.battedFirst) return g.battedFirst; const a = g.analyst && g.analyst.innings && g.analyst.innings[0]; return a ? (a.qld ? 'bat' : 'bowl') : ''; }
 function setBreak(key, v){ const g = G(); g.sessBreaks = g.sessBreaks||{}; g.sessBreaks[key] = v; touchGame(g); }
 function setFirstBat(v){ const g = G(); g.firstBat = g.firstBat===v ? '' : v; touchGame(g); render(); }
-function sessBreaksHtml(g){
-  const fb = firstBatOf(g);
-  return `<div class="sb-head sb-only"><div class="mini-label">Who batted first</div>
-      <div class="seg sb-first">${[['bat','QLD batted first'],['bowl',`${esc(oppShort(g))} batted first`]].map(([v,l])=>`<button class="${fb===v?'on':''}" onclick="setFirstBat('${v}')">${l}</button>`).join('')}</div></div>`;
-}
+function sessBreaksHtml(g){ return ''; }
 /* ---- Sessions from the score at each break ----
    The bottom box of each day is the scoreboard: at Lunch, Tea or Stumps type each innings' score as it stands
    (wickets/runs and overs). The session that just finished is that score less the one at the break before,
