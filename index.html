@@ -958,8 +958,9 @@ function bowlFig(b){
   return [one(b.i1o,b.i1m,b.i1r,b.i1w), one(b.i2o,b.i2m,b.i2r,b.i2w)].filter(Boolean).join(' & ');
 }
 function md_innScore(g, k){
-  const x = sessTotals(g)[k];
-  if(x && x.n) return `${x.w}/${x.r}${g.dec && g.dec[k] ? ' dec' : ''}`;
+  const x = sessTotals(g)[k], dec = g.dec && g.dec[k] ? ' dec' : '';
+  if((g.anSrc||{})['score:'+k] && g.scores && g.scores[k]) return g.scores[k] + dec;   // the official score: analyst report, or the scorecard header of the paste
+  if(x && x.n) return `${x.w}/${x.r}${dec}`;
   return (g.scores && g.scores[k]) || '';
 }
 function md_innOvers(g, k){ const x = sessTotals(g)[k]; return x && x.n && x.b ? ballsToOvers(x.b) : ''; }
@@ -2380,9 +2381,9 @@ function bbbOutcome(sym, res, ball){
   const S0 = (sym||'').trim().replace(/\s+/g,''), dig = +((S0.match(/^(\d+)/)||[])[1]||0);
   const outTxt = /\b(run ?out|stumped|wicket|caught|bowled|lbw|hit wicket)\b|^out\b|\bout!/.test(r) && !/not out|appeal|chance|missed|dropped/.test(r);
   const xt = (t, re)=>{ const x = r.match(re); return x ? +x[1] : 0; };
-  const WD = /(?:^|[,;]\s*)(?:\d+\s*)?wides?\b/, NB = /(?:^|[,;]\s*)(?:\d+\s*)?no ?ball/;   // the result itself, not commentary ("wide of off stump")
+  const WD = /(?:^|[,;]\s*)(?:\d+\s*)?(?:wides?|wd)\b/, NB = /(?:^|[,;]\s*)(?:\d+\s*)?(?:no ?ball|nb\b)/;   // the result itself, not commentary ("wide of off stump")
   if((WD.test(r) || NB.test(r)) && !outTxt){
-    if(WD.test(r)) ball.wd = xt(r, /(\d+)\s*wides?/) || dig || 1;
+    if(WD.test(r)) ball.wd = xt(r, /(\d+)\s*(?:wides?|wd)/) || dig || 1;
     else { ball.nb = 1; ball.bat = xt(r, /(\d+)\s*runs?/) || (dig>1 ? dig-1 : 0); if(/leg ?byes?/.test(r)){ ball.lb = ball.bat || 1; ball.bat = 0; } else if(/\bbyes?\b/.test(r)){ ball.b = ball.bat || 1; ball.bat = 0; } }
     return true;
   }
@@ -2392,10 +2393,13 @@ function bbbOutcome(sym, res, ball){
     if(/^[•·∙●.0]$/.test(s)) return true;
     if((m = S0.match(/^(\d+)?W$/)) || s==='wkt'){ ball.out = true; ball.how = howOf(); const ru = r.match(/\b(\d)\s*runs?\b/); ball.bat += +((m&&m[1])||0) || (ru && !/no run/.test(r) ? +ru[1] : 0); return true; }
     if(/^\d{1,2}$/.test(s)){ ball.bat = +s; return true; }
-    if((m = s.match(/^(\d*)wd(?:\+?(\d+))?$/))){ ball.wd = +(m[1]||1) + +(m[2]||0); return true; }
-    if((m = s.match(/^(\d*)nb(?:\+?(\d+))?$/))){ ball.nb = 1; ball.bat = +(m[2]||0) || (m[1] && +m[1]>1 ? +m[1]-1 : 0); return true; }
-    if((m = s.match(/^(\d*)lb$/))){ ball.lb = +(m[1]||1); return true; }
-    if((m = s.match(/^(\d*)b$/))){ ball.b = +(m[1]||1); return true; }
+    const made = (r.match(/made (\d+) runs?/)||[])[1];
+    if((m = s.match(/^(\d*)wd(?:\+?(\d+))?$/))){ ball.wd = +(m[1]||0) + +(m[2]||0) || xt(r, /(\d+)\s*(?:wides?|wd)/) || 1; return true; }
+    if((m = s.match(/^(\d*)nb(?:\+?(\d+))?$/))){ ball.nb = 1; ball.bat = +(m[2]||0) || (m[1] && +m[1]>1 ? +m[1]-1 : 0) || +(made||0);
+      if(/leg ?byes?/.test(r)){ ball.lb = ball.bat || xt(r, /(\d+)\s*leg ?byes?/) || 1; ball.bat = 0; } else if(/\bbyes?\b/.test(r)){ ball.b = ball.bat || xt(r, /(\d+)\s*byes?/) || 1; ball.bat = 0; }
+      return true; }
+    if((m = s.match(/^(\d*)lb$/))){ ball.lb = +(m[1]||0) || xt(r, /(\d+)\s*leg ?byes?/) || 1; return true; }
+    if((m = s.match(/^(\d*)b$/))){ ball.b = +(m[1]||0) || xt(r, /(\d+)\s*byes?/) || 1; return true; }
   }
   // no symbol: read the result words, strictly. A wicket must be stated, not just mentioned in commentary
   const lead = r.trim();
@@ -2413,17 +2417,38 @@ function bbbOutcome(sym, res, ball){
   else if(!ball.lb && !ball.b && (m = lead.match(/^(\d+)\s*runs?\b|,\s*(\d+)\s*runs?\b/))){ const v = +(m[1]||m[2]); if(ball.wd) ball.wd = Math.max(ball.wd, v); else ball.bat = v; ok = true; }
   return ok;
 }
+/* PlayCricket's ball-by-ball layout, four lines a ball, with the batter's name run straight into the result:
+     4.6 / NB / Oliver Patterson to Bailey GregsonOliver Patterson bowled a no ball
+     4.5 / W  / Oliver Patterson to Lochie HardyLochie Hardy was caught by Dylan McLachlan
+   (older pages put the result on its own line, which is read too) */
+const BBB_RES_START = /^(dot ball|no run|leg byes?|byes?|wides?|no ?balls?|four|six|out\b|run out|wicket|caught|bowled|lbw|stumped|\d+ (?:runs?|wides?|leg byes?|byes?))/i;
+function bbbSplitGlued(bowler, rest){
+  rest = rest.trim();
+  const hid = rest.match(/^\*{3,}/); if(hid) return {bt:'********', res:rest.slice(hid[0].length).trim()};   // a name hidden on the page (and repeated)
+  // the result starts where a capital follows a letter with no space, and what follows is a result or a name again
+  for(let i=1;i<rest.length;i++){
+    const a = rest[i-1], c = rest[i];
+    if(!/[A-Za-z.'\)]/.test(a) || !/[A-Z0-9]/.test(c)) continue;
+    const name = rest.slice(0, i).trim(), tail = rest.slice(i).trim();
+    if(name.length < 2) continue;
+    const first = name.split(/\s+/)[0];
+    if(BBB_RES_START.test(tail) || tail.startsWith(name) || tail.startsWith(bowler) || (first.length>1 && tail.startsWith(first+' '))) return {bt:name, res:tail};
+  }
+  return {bt:rest, res:''};
+}
 function parseBbbNew(lines){
   const balls = [], cards = [], unread = [];
   for(let i=0;i<lines.length;i++){
     if(!/^\d{1,3}\.\d$/.test(lines[i])) continue;
     let j = i+1, sym = '';
     if(BBB_SYM.test(lines[j]||'')){ sym = lines[j]; j++; }
-    const m = (lines[j]||'').match(/^(.+?) to (.+?)$/); if(!m || m[2].length>40 || /[,:;|]/.test(m[2])) continue;
-    const res = /^\d{1,3}\.\d$/.test(lines[j+1]||'') ? '' : (lines[j+1]||'');
-    const ball = {ov:lines[i], over:Math.floor(parseFloat(lines[i]))+1, bowler:m[1].trim(), batter:m[2].trim(), out:false, how:'', bat:0, nb:0, wd:0, b:0, lb:0};
-    if(!bbbOutcome(sym, res, ball)) unread.push(`${lines[i]} ${sym} ${m[0]} ${res}`.replace(/\s+/g,' '));
-    if(ball.out){ const card = readCard(lines, j+2); if(card) cards.push(Object.assign(card, {short:ball.batter, how:ball.how})); }
+    const m = (lines[j]||'').match(/^(.+?) to (.+)$/); if(!m) continue;
+    const sp = bbbSplitGlued(m[1].trim(), m[2]);
+    if(sp.bt.length>40 || /[,:;|]/.test(sp.bt)) continue;
+    const res = sp.res || (/^\d{1,3}\.\d$/.test(lines[j+1]||'') || /^Over \d+$/i.test(lines[j+1]||'') ? '' : (lines[j+1]||''));
+    const ball = {ov:lines[i], over:Math.floor(parseFloat(lines[i]))+1, bowler:m[1].trim(), batter:sp.bt, out:false, how:'', bat:0, nb:0, wd:0, b:0, lb:0};
+    if(!bbbOutcome(sym, res, ball)) unread.push(`${lines[i]} ${sym} ${m[0]}`.replace(/\s+/g,' '));
+    if(ball.out){ const card = readCard(lines, j+1+(sp.res?0:1)); if(card) cards.push(Object.assign(card, {short:ball.batter, how:ball.how})); }
     balls.push(ball);
   }
   return {balls, cards, unread};
@@ -2780,8 +2805,11 @@ function bbbApply(){
     const own = g.anOwn = g.anOwn || {}, osrc = g.anSrc = g.anSrc || {};
     const path = `${bat?'bat':'bowl'}:${pl.id}:${n}`, key = 'i'+n+(bat?'r':'o');
     const anHolds = osrc[path]==='an' && own[path]!==undefined && String(pl[key])===own[path];   // the analyst's figures stand
-    if(bat){ const c = p.check||{}; if(!anHolds){ set('r', c.r??p.r); set('b', c.b??p.b); set('f', c.f??p.f); set('s', c.s??p.s); pl['i'+n+'no'] = !p.out; } set('d', p.d); }
-    else { if(!anHolds){ set('o', p.oversText); set('m', p.maidens); set('r', p.r); set('w', p.w); set('f', p.f); set('s', p.s); } set('d', p.d); }
+    // dots from the paste are exact, but only replace the analyst's when the paste covers that player's whole innings
+    if(bat){ const c = p.check||{}; if(!anHolds){ set('r', c.r??p.r); set('b', c.b??p.b); set('f', c.f??p.f); set('s', c.s??p.s); pl['i'+n+'no'] = !p.out; }
+      if(!anHolds || String(c.b??p.b)===String(pl['i'+n+'b'])) set('d', p.d); }
+    else { if(!anHolds){ set('o', p.oversText); set('m', p.maidens); set('r', p.r); set('w', p.w); set('f', p.f); set('s', p.s); }
+      if(!anHolds || String(p.oversText)===String(pl['i'+n+'o'])) set('d', p.d); }
     if(!anHolds){ own[path] = String(pl[key]); osrc[path] = 'bbb'; }
     filled++;
   });
@@ -3532,7 +3560,7 @@ function anApply(g){
   put(g, 'venue', an.venue, 'g:venue');
   put(g, 'date', an.date, 'g:date');
   if(an.result){ const x = an.result; put(g, 'result', / won by /i.test(x) ? (x.split(/ won by /i)[0]===an.qld ? 'Win' : 'Loss') : /drawn|draw/i.test(x) ? 'Draw' : /tied/i.test(x) ? 'Tie' : '', 'g:result'); }
-  an.innings.forEach(i=>{ const k = (i.qld?'q':'o')+i.n; if(isLtd(g) || !sessTotals(g)[k].n){ const [r,w] = i.score.split('/'); put(g.scores, k, `${w}/${r}`, 'score:'+k); } });
+  an.innings.forEach(i=>{ const k = (i.qld?'q':'o')+i.n; const [r,w] = i.score.split('/'); put(g.scores, k, `${w}/${r}`, 'score:'+k); });
   // batters: one innings at a time, keyed on the runs box
   let nb = 0;
   an.bat.forEach(b=>{ let p = find('batters', b.name);
