@@ -2417,24 +2417,47 @@ function bbbOutcome(sym, res, ball){
   else if(!ball.lb && !ball.b && (m = lead.match(/^(\d+)\s*runs?\b|,\s*(\d+)\s*runs?\b/))){ const v = +(m[1]||m[2]); if(ball.wd) ball.wd = Math.max(ball.wd, v); else ball.bat = v; ok = true; }
   return ok;
 }
-/* PlayCricket's ball-by-ball layout, four lines a ball, with the batter's name run straight into the result:
-     4.6 / NB / Oliver Patterson to Bailey GregsonOliver Patterson bowled a no ball
-     4.5 / W  / Oliver Patterson to Lochie HardyLochie Hardy was caught by Dylan McLachlan
-   (older pages put the result on its own line, which is read too) */
-const BBB_RES_START = /^(dot ball|no run|leg byes?|byes?|wides?|no ?balls?|four|six|out\b|run out|wicket|caught|bowled|lbw|stumped|\d+ (?:runs?|wides?|leg byes?|byes?))/i;
+/* PlayCricket's ball-by-ball layout, four lines a ball, with the batter's name run straight into the result.
+   The written result says exactly what happened, so it is read first; the symbol is the backup. */
+const BBB_RES_START = /^(dot ball|no run|leg byes?|byes?|wides?|no ?balls?|four|six|out\b|run out|wicket|caught|bowled|lbw|stumped|retired|penalty|overthrow|\d+ (?:runs?|wides?|leg byes?|byes?|penalty))/i;
 function bbbSplitGlued(bowler, rest){
   rest = rest.trim();
   const hid = rest.match(/^\*{3,}/); if(hid) return {bt:'********', res:rest.slice(hid[0].length).trim()};   // a name hidden on the page (and repeated)
-  // the result starts where a capital follows a letter with no space, and what follows is a result or a name again
+  const cands = [];
   for(let i=1;i<rest.length;i++){
     const a = rest[i-1], c = rest[i];
     if(!/[A-Za-z.'\)]/.test(a) || !/[A-Z0-9]/.test(c)) continue;
     const name = rest.slice(0, i).trim(), tail = rest.slice(i).trim();
     if(name.length < 2) continue;
-    const first = name.split(/\s+/)[0];
-    if(BBB_RES_START.test(tail) || tail.startsWith(name) || tail.startsWith(bowler) || (first.length>1 && tail.startsWith(first+' '))) return {bt:name, res:tail};
+    cands.push({name, tail});
+    const first = name.split(/\s+/)[0], last = name.split(/\s+/).slice(-1)[0];
+    if(BBB_RES_START.test(tail) || tail.toLowerCase().startsWith(name.toLowerCase()) || tail.startsWith(bowler) || (first.length>1 && tail.startsWith(first+' ')) || new RegExp('^\\S+\\s+'+last.replace(/[^A-Za-z]/g,'')+'\\b','i').test(tail)) return {bt:name, res:tail};
   }
-  return {bt:rest, res:''};
+  // no clear result start: take the first place a new word starts without a space (lowercase then capital, or a run of capitals then a word)
+  const g = cands.find(x=>/[a-z]$/.test(x.name) || /[A-Z]{2,}$/.test(x.name) && /^[A-Z][a-z]/.test(x.tail));
+  return g ? {bt:g.name, res:g.tail} : {bt:rest, res:''};
+}
+/* the written result of one ball: returns true when it was understood */
+function bbbReadWords(res, ball){
+  const r = (res||'').toLowerCase().replace(/\s+/g,' ').trim(); if(!r) return false;
+  const num = re=>{ const m = r.match(re); return m ? +m[1] : null; };
+  const word = {a:1, an:1, one:1, two:2, three:3, four:4, five:5, six:6, seven:7};
+  const cnt = re=>{ const m = r.match(re); return m ? (/^\d+$/.test(m[1]) ? +m[1] : (word[m[1]]||1)) : null; };
+  let ok = false;
+  if(/dot ball|no run/.test(r)) ok = true;
+  const made = num(/made (\d+) runs?/); if(made!==null){ ball.bat += made; ok = true; }
+  const wd = cnt(/bowled (\d+|a|an|one|two|three|four|five) wides?\b/) ?? cnt(/\b(\d+) wides?\b/) ?? (/\bwide\b/.test(r) && !/wide of/.test(r) ? 1 : null);
+  if(wd!==null){ ball.wd += wd; ok = true; }
+  if(/no ?ball/.test(r)){ ball.nb = 1; ok = true; }
+  const lb = cnt(/\b(\d+|a|one|two|three|four|five) leg ?byes?\b/) ?? (/\bleg ?byes?\b/.test(r) ? 1 : null);
+  const by = lb===null ? (cnt(/\b(\d+|a|one|two|three|four|five) byes?\b/) ?? (/\bbyes?\b/.test(r) ? 1 : null)) : null;
+  if(lb!==null){ ball.lb += lb; ok = true; } else if(by!==null){ ball.b += by; ok = true; }
+  const ot = num(/(\d+) overthrows?/); if(ot!==null && !/includ/.test(r)){ ball.bat += ot; ok = true; }   // "made 1 run, 4 overthrows" = 5
+  if(/\b(was |is )?(caught|bowled by|bowled\b(?! a| \d| an)|lbw|leg before|stumped|run out|hit wicket|retired out|obstructing|handled the ball|timed out)/.test(r) && !/not out|dropped|missed|chance/.test(r) && !/bowled (a |an |\d+ )?(wide|no ball)/.test(r)){
+    ball.out = true; const h = r.match(/(caught|bowled|lbw|leg before|stumped|run out|hit wicket|retired|obstructing|handled|timed out)/); ball.how = h ? h[1].replace('leg before','LBW') : 'Out'; ok = true; }
+  if(/\bfour\b/.test(r) && made===null && !ball.lb && !ball.b){ ball.bat = 4; ok = true; }
+  if(/\bsix\b/.test(r) && made===null && !ball.lb && !ball.b){ ball.bat = 6; ok = true; }
+  return ok;
 }
 function parseBbbNew(lines){
   const balls = [], cards = [], unread = [];
@@ -2444,10 +2467,16 @@ function parseBbbNew(lines){
     if(BBB_SYM.test(lines[j]||'')){ sym = lines[j]; j++; }
     const m = (lines[j]||'').match(/^(.+?) to (.+)$/); if(!m) continue;
     const sp = bbbSplitGlued(m[1].trim(), m[2]);
-    if(sp.bt.length>40 || /[,:;|]/.test(sp.bt)) continue;
     const res = sp.res || (/^\d{1,3}\.\d$/.test(lines[j+1]||'') || /^Over \d+$/i.test(lines[j+1]||'') ? '' : (lines[j+1]||''));
-    const ball = {ov:lines[i], over:Math.floor(parseFloat(lines[i]))+1, bowler:m[1].trim(), batter:sp.bt, out:false, how:'', bat:0, nb:0, wd:0, b:0, lb:0};
-    if(!bbbOutcome(sym, res, ball)) unread.push(`${lines[i]} ${sym} ${m[0]}`.replace(/\s+/g,' '));
+    const ball = {ov:lines[i], over:Math.floor(parseFloat(lines[i]))+1, bowler:m[1].trim(), batter:sp.bt.length>40 ? sp.bt.slice(0,40) : sp.bt, out:false, how:'', bat:0, nb:0, wd:0, b:0, lb:0};
+    // PlayCricket's plain sentence joined to the name: the words decide, the symbol confirms a wicket.
+    // A result on its own line (other layouts, often commentary): the symbol decides, as before.
+    let ok;
+    if(sp.res){ ok = bbbReadWords(res, ball);
+      if(!ok) ok = bbbOutcome(sym, res, ball);
+      else if(/^W$/.test((sym||'').trim()) && !ball.out && !(ball.wd||ball.nb||ball.lb||ball.b)){ ball.out = true; ball.how = ball.how || 'Out'; } }
+    else ok = bbbOutcome(sym, res, ball);
+    if(!ok || sp.bt.length>40) unread.push(`${lines[i]} ${sym} ${m[0]}`.replace(/\s+/g,' '));
     if(ball.out){ const card = readCard(lines, j+1+(sp.res?0:1)); if(card) cards.push(Object.assign(card, {short:ball.batter, how:ball.how})); }
     balls.push(ball);
   }
