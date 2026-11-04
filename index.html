@@ -2376,9 +2376,21 @@ function bbbOutcome(sym, res, ball){
   const r = (res||'').toLowerCase(), s = (sym||'').trim().toLowerCase().replace(/\s+/g,''); let m;
   const howOf = ()=>{ const h = (res||'').match(BBB_HOW); return h ? h[1].replace(/leg before/i,'LBW') : 'Out'; };
   // the scorer's symbol is the record of the ball: it decides runs, extras and wickets; the words only say how out
+  // a wide or no-ball is never a wicket unless the words say the batter was out (a run out or stumping off one)
+  const S0 = (sym||'').trim().replace(/\s+/g,''), dig = +((S0.match(/^(\d+)/)||[])[1]||0);
+  const outTxt = /\b(run ?out|stumped|wicket|caught|bowled|lbw|hit wicket)\b|^out\b|\bout!/.test(r) && !/not out|appeal|chance|missed|dropped/.test(r);
+  const xt = (t, re)=>{ const x = r.match(re); return x ? +x[1] : 0; };
+  const WD = /(?:^|[,;]\s*)(?:\d+\s*)?wides?\b/, NB = /(?:^|[,;]\s*)(?:\d+\s*)?no ?ball/;   // the result itself, not commentary ("wide of off stump")
+  if((WD.test(r) || NB.test(r)) && !outTxt){
+    if(WD.test(r)) ball.wd = xt(r, /(\d+)\s*wides?/) || dig || 1;
+    else { ball.nb = 1; ball.bat = xt(r, /(\d+)\s*runs?/) || (dig>1 ? dig-1 : 0); if(/leg ?byes?/.test(r)){ ball.lb = ball.bat || 1; ball.bat = 0; } else if(/\bbyes?\b/.test(r)){ ball.b = ball.bat || 1; ball.bat = 0; } }
+    return true;
+  }
+  // a lower-case w is the scorer's mark for a wide; only a capital W is a wicket
+  if(/^\d*w$/.test(S0)){ ball.wd = dig || 1; return true; }
   if(s){
     if(/^[•·∙●.0]$/.test(s)) return true;
-    if((m = s.match(/^(\d+)?w$/)) || s==='wkt'){ ball.out = true; ball.how = howOf(); const ru = r.match(/\b(\d)\s*runs?\b/); ball.bat += +((m&&m[1])||0) || (ru && !/no run/.test(r) ? +ru[1] : 0); return true; }
+    if((m = S0.match(/^(\d+)?W$/)) || s==='wkt'){ ball.out = true; ball.how = howOf(); const ru = r.match(/\b(\d)\s*runs?\b/); ball.bat += +((m&&m[1])||0) || (ru && !/no run/.test(r) ? +ru[1] : 0); return true; }
     if(/^\d{1,2}$/.test(s)){ ball.bat = +s; return true; }
     if((m = s.match(/^(\d*)wd(?:\+?(\d+))?$/))){ ball.wd = +(m[1]||1) + +(m[2]||0); return true; }
     if((m = s.match(/^(\d*)nb(?:\+?(\d+))?$/))){ ball.nb = 1; ball.bat = +(m[2]||0) || (m[1] && +m[1]>1 ? +m[1]-1 : 0); return true; }
@@ -2417,7 +2429,7 @@ function parseBbbNew(lines){
   return {balls, cards, unread};
 }
 /* ---- Any other layout: commentary (one or several lines a ball) or a table/CSV export ---- */
-const BBB_WK = /^(?:out\b|w$|wkt|wicket|caught|bowled|lbw|leg before|stumped|run ?out|hit wicket|c\s+\S.*\bb\s+\S|b\s+[A-Z])/i;
+const BBB_WK = /^(?:out\b|wkt|wicket|caught|bowled|lbw|leg before|stumped|run ?out|hit wicket|c\s+\S.*\bb\s+\S|b\s+[A-Z])/i;
 function bbbName(s){ s = (s||'').replace(/^[\s,;:\-–|]+|[\s,;:\-–|]+$/g,''); if(/^\*{3,}$/.test(s)) return '********';   // a name hidden on the page
   return s.replace(/[†*]|\((?:c|wk|c & wk)\)/gi,'').replace(/\s+/g,' ').replace(/^[\s,;:\-–|]+|[\s,;:\-–|.]+$/g,'').trim(); }
 /* the result words of one ball: "FOUR", "2 runs", "1 wide", "no ball, 1 run", "OUT caught", "W", "1lb" ... */
@@ -2425,10 +2437,11 @@ function bbbGenOutcome(text, ball){
   const segs = (text||'').split(/\s*[,;|]\s*|\s+-\s+|\s+–\s+/).map(s=>s.trim()).filter(Boolean).slice(0, 3);
   let ok = false;
   segs.forEach((t, i)=>{ let m; const s = t.toLowerCase().replace(/[!.]+$/,'');
-    if(i<2 && BBB_WK.test(t)){ ball.out = true; const h = t.match(BBB_HOW); ball.how = h ? h[1].replace(/leg before/i,'LBW') : (ball.how||'Out'); ok = true; if((m = s.match(/(\d+)\s*runs?/))) ball.bat += +m[1]; return; }
+    if(i<2 && (t==='W' || (BBB_WK.test(t) && !/^(\d+\s*)?(wides?|no ?balls?)\b/i.test(t) && !/not out|appeal|chance|dropped|missed/i.test(t)))){ ball.out = true; const h = t.match(BBB_HOW); ball.how = h ? h[1].replace(/leg before/i,'LBW') : (ball.how||'Out'); ok = true; if((m = s.match(/(\d+)\s*runs?/))) ball.bat += +m[1]; return; }
     if(/^(no run|dot( ball)?|\.|•|·|0)$/.test(s)){ ok = true; return; }
     if(/^four\b|^boundary four/.test(s)){ ball.bat = 4; ok = true; return; }
     if(/^six\b|^boundary six/.test(s)){ ball.bat = 6; ok = true; return; }
+    if(t==='w' || (m = t.match(/^(\d+)w$/))){ ball.wd += m ? +m[1] : 1; ok = true; return; }
     if((m = s.match(/^(\d+)?\s*(?:wides?|wd)\b(?:\s*\+?\s*(\d+))?/))){ ball.wd += +(m[1]||1) + +(m[2]||0); ok = true; return; }
     if((m = s.match(/^(\d+)?\s*(?:no ?balls?|nb)\b(?:\s*\+?\s*(\d+))?/))){ ball.nb += 1; ball.bat += +(m[2]||0) + (m[1] && +m[1]>1 ? +m[1]-1 : 0); ok = true; return; }
     if((m = s.match(/^(\d+)?\s*(?:leg ?byes?|lb)\b/))){ ball.lb += +(m[1]||1); ok = true; return; }
