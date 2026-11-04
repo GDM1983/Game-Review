@@ -2220,11 +2220,56 @@ function anPlayerFielding(g, name){
 }
 function anFillFielding(g){
   const an = g.analyst; if(!an) return;
+  const own = g.anOwn = g.anOwn || {};
+  const put = (f, k, v, path)=>{ const cur = f[k]; if(cur!=='' && cur!==undefined && cur!==null && own[path]!==String(cur)) return; f[k] = String(v); own[path] = String(v); };
   [...g.batters, ...g.bowlers].forEach(p=>{ const name = (p.name||'').trim(), key = pkey(name); if(!key) return;
     const f = g.pfield[key] = Object.assign({c:'', d:'', ro:'', notes:''}, g.pfield[key]||{});
-    const c = an.field.catches.find(([n])=>nmSame(n, name)); if(c && !has(f.c)) f.c = String(c[1]);
+    const c = an.field.catches.find(([n])=>nmSame(n, name)); if(c) put(f, 'c', c[1], `pf:${key}:c`);
     const d = (an.field.lapses||[]).filter(t=>{ const m = t.match(/dropped catch by (.+?) --/); return m && nmSame(anName(m[1]), name); }).length;
-    if(d && !has(f.d)) f.d = String(d); });
+    if(d) put(f, 'd', d, `pf:${key}:d`); });
+}
+/* milestones from the players' own figures: replaced each time the figures are filled, so they follow the game */
+function autoMilestones(g){
+  const s = S(), ns = isLtd(g) ? [1] : [1,2];
+  g.batMilestones = g.batMilestones.filter(m=>!m.auto); g.bowlMilestones = g.bowlMilestones.filter(m=>!m.auto);
+  const top = (types, v)=> types.map(t=>({t, v:parseInt(t)})).filter(o=>!isNaN(o.v) && v>=o.v).sort((a,b)=>b.v-a.v)[0];
+  g.batters.forEach(p=>ns.forEach(n=>{ const k = 'i'+n; if(!has(p[k+'r']) || !p.name) return;
+    if(g.batMilestones.some(x=>x.innings===String(n) && nmSame(x.player, p.name))) return;
+    const hit = top(s.batMilestoneTypes, num(p[k+'r'])); if(hit) g.batMilestones.push(Object.assign(newMilestone(hit.t), {player:p.name, detail:`${num(p[k+'r'])}${p[k+'no']?'*':''} (${num(p[k+'b'])})`, innings:String(n), auto:true})); }));
+  g.bowlers.forEach(p=>ns.forEach(n=>{ const k = 'i'+n; if(!has(p[k+'w']) || !p.name) return;
+    if(g.bowlMilestones.some(x=>x.innings===String(n) && nmSame(x.player, p.name))) return;
+    const hit = top(s.bowlMilestoneTypes, num(p[k+'w'])); if(hit) g.bowlMilestones.push(Object.assign(newMilestone(hit.t), {player:p.name, detail:`${num(p[k+'w'])}/${num(p[k+'r'])}`, innings:String(n), auto:true})); }));
+}
+/* team bowling KPIs from the data: overs of 2 or fewer runs, boundaries conceded, and wickets with the new ball,
+   old ball and second new ball. The ball by ball is used where it was pasted, otherwise the analyst's over-by-over runs.
+   A box someone has typed into is left alone. */
+function autoKpis(g){
+  if(isLtd(g)) return;
+  const s = S(), own = g.anOwn = g.anOwn || {}, want = id=>s.bowlMetrics.some(m=>m.id===id);
+  const put = (id, field, val)=>{ if(val===null || val===undefined || !want(id)) return;
+    g.bowlMetrics[id] = Object.assign({value:'', value2:'', notes:''}, g.bowlMetrics[id]||{});
+    const e = g.bowlMetrics[id], path = `kpi:${id}:${field}`, cur = e[field];
+    if(cur!==undefined && cur!==null && String(cur).trim()!=='' && own[path]!==String(cur)) return;
+    e[field] = String(val); own[path] = String(val); };
+  [1,2].forEach(n=>{
+    const f = n===1 ? 'value' : 'value2';
+    let overs = null;   // [over, runs, wickets, complete]
+    const rec = (g.bbb||{})['bowl'+n];
+    if(rec){ const by = {}; bbbBalls(rec).forEach(x=>{ const o = by[x.over] || (by[x.over] = {r:0, w:0, legal:0}); o.r += x.bat+x.nb+x.wd+x.b+x.lb; if(!x.wd && !x.nb) o.legal++; if(x.out && !/retired/i.test(x.how)) o.w++; });
+      overs = Object.entries(by).map(([k,o])=>[+k, o.r, o.w, o.legal>=6]); }
+    else if(g.analyst && g.analyst.manh && g.analyst.manh[n]){
+      const inn = g.analyst.innings.find(i=>!i.qld && i.n===n), full = inn && /\./.test(inn.overs||'') ? Math.floor(num(inn.overs)) : 999;
+      overs = decPts(g.analyst.manh[n]).map(([o,r,w])=>[o, r, +w||0, o<=full]); }
+    if(overs && overs.length){
+      put('overs2', f, overs.filter(o=>o[3] && o[1]<=2).length);
+      const ph = {nb1:[1,20], midph:[21,80], nb2:[81,9999]};
+      if(!rec) Object.entries(ph).forEach(([id,[a,b]])=>put(id, f, overs.filter(o=>o[0]>=a && o[0]<=b).reduce((m,o)=>m+o[2],0)));
+    }
+    // boundaries conceded: the bowlers' 4s and 6s, or the opposition batters' from the analyst
+    const bw = g.bowlers.filter(p=>has(p['i'+n+'f']) || has(p['i'+n+'s']));
+    let fs = bw.length ? [bw.reduce((m,p)=>m+num(p['i'+n+'f']),0), bw.reduce((m,p)=>m+num(p['i'+n+'s']),0)] : (g.analyst && g.analyst.oppBnd && g.analyst.oppBnd[n]) || null;
+    if(fs){ const bm = s.bowlMetrics.find(m=>m.kind==='boundaries'); if(bm){ put(bm.id, 'f'+n, fs[0]); put(bm.id, 's'+n, fs[1]); } }
+  });
 }
 function playerFieldingHtml(g, x){
   const name = groupName(x); if(!name) return `<div class="hint">Add the player's name first.</div>`;
@@ -2740,6 +2785,7 @@ function bbbApply(){
     const hit = types.map(t=>({t, v:parseInt(t)})).filter(o=>!isNaN(o.v) && val>=o.v).sort((a,b)=>b.v-a.v)[0];
     if(hit) g[msList].push(Object.assign(newMilestone(hit.t), {player:name, detail: bat ? `${val}${p.out?'':'*'} (${(p.check||{}).b ?? p.b})` : `${p.w}/${p.r}`, innings:String(n), auto:true}));
   });
+  autoKpis(g);
   // limited overs: the overs breakdown for that innings
   if(isLtd(g)){ const side = bat ? 'bat' : 'bowl';
     segs(g, side).forEach(sg=>{
@@ -2903,7 +2949,7 @@ const DOC_CSS = `
   .d-three .d-h,.d-two.wheel .d-h{margin:8px 0 6px;}
   .d-vis{margin:4px 18px 0;border:1px solid #E6E1D4;border-radius:6px;padding:4px 12px 10px;} .d-vis .d-h{margin:8px 0 6px;}
   .d-wh2{display:grid;grid-template-columns:1fr 1fr;gap:12px;} .d-wh2 svg{display:block;max-width:250px;margin:0 auto;}
-  .d-pl{display:grid;grid-template-columns:190px 1fr;gap:14px;align-items:start;border-top:1px solid #EDE4E7;margin-top:8px;}
+  .d-pl{display:grid;grid-template-columns:190px 1fr;gap:14px;align-items:start;border-top:1px solid #EDE4E7;margin-top:8px;} .d-pl.nowh{border-top:0;margin-top:0;}
   .d-nh{font-size:10.5px;font-weight:700;color:#6E1B3C;margin:6px 0 2px;}
   .d-page > .d-notes,.d-page > .d-tab + .d-notes{margin:4px 18px 6px 18px;padding-left:16px;}
   .d-notes{margin:2px 0 6px 0;padding-left:14px;font-size:9.8px;line-height:1.42;color:#1B1F1C;} .d-notes li{margin:1px 0;} .d-notes b{color:#6E1B3C;}
@@ -3111,7 +3157,7 @@ function anSplitBullets(text, keys){
   for(let i=1;i<parts.length;i+=2) out[parts[i]] = parts[i+1].trim().replace(/\s+/g,' ').replace(/;$/,'');
   return out;
 }
-const AN_BAT_KEYS = ['Scoring areas','Weakness','Dismissal','Pace v spin','Pressure','Entry'];
+const AN_BAT_KEYS = ['Scoring areas','Weakness','Dismissal','Pace v spin','Pressure','Role','Entry'];
 const AN_BOWL_KEYS = ['By innings','Variation','Deliveries coded','Matchups','Phases','Spells','Under pressure'];
 function anName(n){ const m = (n||'').match(/^([^,]+),\s*(.+)$/); return m ? `${m[2]} ${m[1]}`.replace(/\s+/g,' ').trim() : (n||'').trim(); }
 async function readAnalystPdf(pdf, OPS, onPage){
@@ -3266,6 +3312,8 @@ function anCompact(A){
       let solo = 0; if(!b.notes['By innings']){ const cnt = {}; b.vs.forEach(v=>A.bat.filter(x=>x.team!==qld && x.name===v.batter).forEach(x=>{ cnt[x.inn] = (cnt[x.inn]||0)+v.b; })); solo = +(Object.entries(cnt).sort((a,c)=>c[1]-a[1])[0]||[0])[0]; }
       return {...b, team:undefined, solo, vs:b.vs.map(v=>[v.batter, v.b, v.r, v.w, v.sr]), lengths:b.lengths.map(l=>[l.len, l.pct, l.balls, l.econ, l.w, l.bdry]), pitch:encPts(b.pitch), wheels:b.wheels.map(w=>({hand:w.hand, shots:encPts(w.shots.filter(x=>x[2]!==0))}))}; }),
     oppBowl:A.bowl.filter(b=>b.team!==qld).map(b=>({name:b.name, type:b.type})),
+    manh:Object.fromEntries(A.innings.filter(i=>i.team!==qld && (A.manh||{})[i.inn]).map(i=>[tInn(i.team, i.inn), A.manh[i.inn].map(x=>x.join(',')).join(';')])),
+    oppBnd:Object.fromEntries(A.innings.filter(i=>i.team!==qld).map(i=>{ const bs = A.bat.filter(b=>b.team===i.team && b.inn===i.inn); return [tInn(i.team, i.inn), bs.length ? [bs.reduce((m,b)=>m+b.f,0), bs.reduce((m,b)=>m+b.s,0)] : null]; }).filter(x=>x[1])),
     types:Object.fromEntries(Object.entries(A.types)), recs,
     field:{catches:catchList, items:Object.fromEntries(Object.entries(fq.items).filter(([k])=>!/^_/.test(k))), lapses:fq.lapses, oppLapses:fo.lapses},
     lists:{worked:L(`${qld}|What worked`), failed:L(`${qld}|What failed`), teamRecs:L(`${qld}|Team recommendations`).filter(x=>!/^Area \|/.test(x)),
@@ -3274,23 +3322,129 @@ function anCompact(A){
       brill:anyList('Tactical brilliance'), errors:anyList('Tactical errors'), collapses:[...L(`${qld}|Collapse patterns`), ...L(`${opp}|Collapse patterns`)]}};
 }
 function openAnalyst(){
-  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/pdf,.pdf';
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/pdf,.pdf,text/html,.html,.htm';
   inp.onchange = ()=>{ const f = inp.files[0]; if(f) importAnalyst(f); };
   inp.click();
 }
 async function importAnalyst(file){
   const g = G(); toast('Reading the analyst report…');
   try{
-    const lib = await loadPdfJs();
-    const pdf = await lib.getDocument({data: new Uint8Array(await file.arrayBuffer())}).promise;
-    const A = await readAnalystPdf(pdf, lib.OPS, (i,n)=>{ if(i%10===0) toast(`Reading page ${i} of ${n}…`); });
+    let A;
+    if(/\.html?$/i.test(file.name||'') || /html/.test(file.type||'')) A = readAnalystHtml(await file.text());
+    else { const lib = await loadPdfJs();
+      const pdf = await lib.getDocument({data: new Uint8Array(await file.arrayBuffer())}).promise;
+      A = await readAnalystPdf(pdf, lib.OPS, (i,n)=>{ if(i%10===0) toast(`Reading page ${i} of ${n}…`); }); }
     if(!A.bat.length && !A.bowl.length) throw new Error('none');
+    const again = !!g.analyst;
     g.analyst = anCompact(A);
     const done = anApply(g); anFillFielding(g);
     touchGame(g); touchSeason(S()); render();
-    toast(`Analyst report added: ${done.join(', ')}`);
+    toast(`Analyst report ${again ? 'updated' : 'added'}: ${done.join(', ')}`);
     publishReviews(true);
   }catch(e){ console.warn(e); toast(e && e.message==='load' ? 'Could not load the PDF reader, check the connection' : 'That file doesn\'t look like the analyst\'s match analysis'); }
+}
+
+/* ============================= ANALYST REPORT, WEB PAGE VERSION =============================
+   The live "Master match analysis" saved as a web page (.html). Same report as the PDF, read from its
+   structure instead of from print positions, giving the same record as readAnalystPdf. */
+const AN_HCOL = {'#9aa':0, '#99aaaa':0, '#2f6f8f':1, '#c28b2c':4, '#a3281c':6, '#111':'W', '#111111':'W'};
+const AN_HPCOL = {'#2f6f8f':0, '#c9b98f':1, '#a3281c':4, '#111':'W', '#111111':'W'};
+function anTxt(el){ return (el ? el.textContent : '').replace(/ /g,' ').replace(/\s+/g,' ').trim(); }
+function anTable(tb){ const rows = [...tb.querySelectorAll('tr')].map(tr=>[...tr.children].map(anTxt)); return {head: rows[0]||[], rows: rows.slice(1)}; }
+function anHWheel(svg){
+  const ring = [...svg.querySelectorAll('circle')].find(c=>/^#eef3e6$/i.test(c.getAttribute('fill')||'')); if(!ring) return null;
+  const cx = +ring.getAttribute('cx'), cy = +ring.getAttribute('cy'), r = +ring.getAttribute('r');
+  const shots = [];
+  svg.querySelectorAll('line').forEach(l=>{ const c = AN_HCOL[(l.getAttribute('stroke')||'').toLowerCase()]; if(c===undefined) return;
+    if(+l.getAttribute('x1')!==cx || +l.getAttribute('y1')!==cy) return;
+    const dx = (+l.getAttribute('x2')-cx)/r, dy = -(+l.getAttribute('y2')-cy)/r;   // page y runs down; the record's y runs up, as in the PDF
+    shots.push([Math.round(Math.atan2(dy,dx)*180/Math.PI), Math.min(100, Math.round(Math.hypot(dx,dy)*100)), c]); });
+  const lab = [...svg.querySelectorAll('text')].map(anTxt).find(t=>/^(RHB|LHB)$/.test(t));
+  return {shots, hand: lab ? lab[0] : ''};
+}
+function anHPitch(svg){
+  const pr = [...svg.querySelectorAll('rect')].find(x=>/^#efe4c8$/i.test(x.getAttribute('fill')||'')); if(!pr) return null;
+  const x0 = +pr.getAttribute('x'), y0 = +pr.getAttribute('y'), w = +pr.getAttribute('width'), h = +pr.getAttribute('height');
+  return [...svg.querySelectorAll('circle')].map(c=>({c:AN_HPCOL[(c.getAttribute('fill')||'').toLowerCase()], x:+c.getAttribute('cx'), y:+c.getAttribute('cy')}))
+    .filter(d=>d.c!==undefined && d.x>=x0 && d.x<=x0+w && d.y>=y0 && d.y<=y0+h)
+    .map(d=>[Math.round((d.x-x0)/w*100), Math.round((d.y-y0)/h*100), d.c]);   // y: 0 = batter's stumps (top)
+}
+function readAnalystHtml(text){
+  const doc = new DOMParser().parseFromString(text, 'text/html');
+  const A = {teams:[], innings:[], bat:[], bowl:[], types:{}, lists:{}, recs:{}, fielding:{}, manh:{}, html:true};
+  A.title = anTxt(doc.querySelector('.hdr h1'));
+  const scope = anTxt(doc.querySelector('.scope'));
+  const d = scope.match(/Date (\d{4}-\d{2}-\d{2})/); if(d) A.date = d[1];
+  const v = scope.match(/Venue (.+?)(?: · |$)/); if(v) A.venue = v[1].trim();
+  doc.querySelectorAll('.kpi').forEach(k=>{ const l = anTxt(k.querySelector('.l')), val = anTxt(k.querySelector('.v')), sub = anTxt(k.querySelector('.s'));
+    if(/^Result$/i.test(l) && / won by | drawn| draw| tied/i.test(val+' '+sub)) A.result = (val+' '+sub).trim();
+    const m = l.match(/^Inns (\d)$/i); if(m && /^\d+\/\d+$/.test(val)) A.innings.push({inn:+m[1], score:val, team:sub.replace(/ · .*$/,''), overs:(sub.match(/([\d.]+) ov/)||[])[1]||''}); });
+  if(!A.result){ const sh = anTxt(doc.querySelector('.hdr .sub')); if(/ won by | drawn| tied/i.test(sh)) A.result = sh; }
+  A.innings.sort((a,b)=>a.inn-b.inn);
+  A.teams = [...new Set(A.innings.map(i=>i.team).filter(Boolean))];
+  const teamOf = t=>A.teams.find(x=>t===x || t.startsWith(x+' '));
+  // over-by-over runs and wickets for each innings, from the Manhattan bars
+  doc.querySelectorAll('.card').forEach(c=>{ const h = anTxt(c.querySelector('h2')).match(/^Manhattan -- inns (\d)/); if(!h) return;
+    A.manh[+h[1]] = [...c.querySelectorAll('rect title')].map(t=>{ const m = anTxt(t).match(/^Over (\d+): (\d+) runs?(?:, (\d+) wkt)?/); return m ? [+m[1], +m[2], +(m[3]||0)] : null; }).filter(Boolean); });
+  // walk the page in order, keeping track of whose section it is
+  let team = '', rec = null;
+  const listAdd = (k, t)=>{ if(t) (A.lists[k] = A.lists[k]||[]).push(t); };
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT);
+  for(let el = walker.currentNode; el; el = walker.nextNode()){
+    const cls = el.classList || {contains:()=>false}, tag = el.tagName;
+    if(cls.contains('h3t') || (tag==='H3' && !el.closest('.pc'))){
+      const t = anTxt(el), tm = teamOf(t); rec = null;
+      const rm = t.match(/^(.+?, .+?)\s*\|?\s*(Batting|Bowling)$/); if(rm){ rec = `${anName(rm[1])}|${rm[2]==='Batting'?'bat':'bowl'}`; A.recs[rec] = A.recs[rec]||[]; continue; }
+      if(tm) team = tm;
+      if(tm && / in the field$/.test(t) && !/captaincy/i.test(t)){   // fielding box
+        const box = el.closest('.card') || el.parentElement, f = A.fielding[tm] = {items:{}, lapses:[]};
+        box.querySelectorAll('tr').forEach(tr=>{ const c = [...tr.children].map(anTxt); if(c.length>=2 && c[0]) f.items[c[0]] = c.slice(1).join(' '); });
+        box.querySelectorAll('li').forEach(li=>{ const x = anTxt(li); if(/^Inns \d/.test(x)) f.lapses.push(x); });
+      }
+      continue;
+    }
+    if(tag==='H2' && /^\d+\. /.test(anTxt(el))){ rec = null; continue; }
+    if(rec && tag==='LI'){ A.recs[rec].push(anTxt(el)); continue; }
+    // titled cards: lists and tables keyed "team|title", as the PDF reader keys them
+    if(cls.contains('card') && !el.querySelector('.pc')){
+      const title = anTxt(el.querySelector(':scope > h2')); if(!title || /^Manhattan|^Momentum|^Worm/.test(title)) continue;
+      const k = `${team}|${title}`;
+      el.querySelectorAll('li').forEach(li=>listAdd(k, anTxt(li)));
+      el.querySelectorAll('table').forEach(tb=>{ const t = anTable(tb); [t.head, ...t.rows].forEach(r=>listAdd(k, r.join(' | '))); });
+      continue;
+    }
+    if(!cls.contains('pc')) continue;
+    // a player card, or a team's fielding box laid out the same way
+    const h3 = el.querySelector('h3'), sub = anTxt(h3 && h3.querySelector('.sub')), name = anName(anTxt(h3).replace(sub,'').trim());
+    const fm = anTxt(h3).match(/^(.+?) in the field$/);
+    if(fm && teamOf(fm[1])){ const tm = teamOf(fm[1]), f = A.fielding[tm] = {items:{}, lapses:[]}; team = tm;
+      el.querySelectorAll('tr').forEach(tr=>{ const c = [...tr.children].map(anTxt); if(c.length>=2 && c[0]) f.items[c[0]] = c.slice(1).join(' '); });
+      el.querySelectorAll('li').forEach(li=>{ const x = anTxt(li); if(/^Inns \d/.test(x)) f.lapses.push(x); });
+      continue; }
+    const stat = anTxt(el.querySelector(':scope > .sub')), lis = [...el.querySelectorAll('li')].map(anTxt).join(' ');
+    const tables = [...el.querySelectorAll('table')].map(anTable), svgs = [...el.querySelectorAll('svg')];
+    const bm = sub.match(/inns (\d) · #(\d+) · (Right|Left)-hand/);
+    if(bm){
+      const n = stat.match(/^(\d+)\*? \((\d+)\) SR ([\d.–-]+) · 4s (\d+) 6s (\d+) · boundary ([\d.–-]+)%? · dot ([\d.–-]+)%? · attack ([\d.–-]+)%? · false ([\d.–-]+)%?/) || [];
+      const vt = tables.find(t=>/^v bowler$/i.test(t.head[0]||''));
+      const wh = svgs.map(anHWheel).find(Boolean);
+      A.bat.push({team, name, inn:+bm[1], pos:+bm[2], hand:bm[3][0], r:+n[1]||0, b:+n[2]||0, sr:n[3]||'', f:+n[4]||0, s:+n[5]||0, bnd:n[6]||'', dot:n[7]||'', attack:n[8]||'', fals:n[9]||'',
+        notes:anSplitBullets(lis, AN_BAT_KEYS), vs: vt ? vt.rows.filter(r=>/^\d+$/.test(r[2]||'')).map(r=>({bowler:anName(r[0]), type:r[1], r:+r[2], b:+r[3], sr:r[4], out:r[5]==='W'})) : [],
+        wheel: wh ? wh.shots : []});
+    } else {
+      A.types[name] = AN_SPIN.test(sub) ? 'spin' : 'pace';
+      const n = stat.match(/^([\d.]+) ov · (\d+)-(\d+) · econ ([\d.–-]+) · dots ([\d.–-]+)% · boundaries ([\d.–-]+)% · maidens (\d+) · wides (\d+), no-balls (\d+)/) || [];
+      const lt = tables.find(t=>/^Length$/i.test(t.head[0]||'')), vt = tables.find(t=>/^v batter$/i.test(t.head[0]||''));
+      const pitch = svgs.map(anHPitch).find(Boolean) || [];
+      const ws = svgs.map(anHWheel).filter(Boolean);
+      A.bowl.push({team, name, type:sub, overs:n[1]||'', w:+n[2]||0, r:+n[3]||0, econ:n[4]||'', dot:n[5]||'', bdry:n[6]||'', m:+n[7]||0, wd:+n[8]||0, nb:+n[9]||0,
+        lengths: lt ? lt.rows.filter(r=>r.length>=6).map(r=>({len:r[0], pct:r[1], balls:+r[2], econ:r[3], w:+r[4], bdry:r[5]})) : [],
+        notes:anSplitBullets(lis.replace(/PROXY:.*?(tracking\.|tracked)/g,''), AN_BOWL_KEYS),
+        vs: vt ? vt.rows.filter(r=>/^\d+$/.test(r[1]||'')).map(r=>({batter:anName(r[0]), b:+r[1], r:+r[2], w:+r[3], sr:r[4]})) : [],
+        pitch, wheels: ws.map((w,i)=>({hand: w.hand ? (w.hand==='RHB'?'R':'L') : (ws.length===2 ? (i===0?'R':'L') : ''), shots:w.shots}))});
+    }
+  }
+  return A;
 }
 
 function anFillHidden(g){
@@ -3308,67 +3462,62 @@ function anFillHidden(g){
 /* fill the match from the analyst's report, leaving anything already entered alone */
 function anApply(g){
   const an = g.analyst, s = S(), done = [];
+  const own = g.anOwn = g.anOwn || {};
+  const mine = (cur, path)=> cur===undefined || cur===null || String(cur).trim()==='' || (own[path]!==undefined && String(cur)===own[path]);
+  const put = (obj, key, val, path)=>{ if(val===undefined || val===null || val==='') return false; if(!mine(obj[key], path)) return false; obj[key] = String(val); own[path] = String(val); return true; };
   const find = (list, name)=>g[list].find(p=>nmSame(p.name, name));
   const oppName = t=>{ const m = (t||'').match(/^(Vic|NSW|Tas|SA|WA|ACT|NZ|Qld)/i); const map = {vic:'Victoria', nsw:'New South Wales', tas:'Tasmania', sa:'South Australia', wa:'Western Australia', act:'ACT Comets', nz:'New Zealand', qld:'Queensland'}; return m ? map[m[1].toLowerCase()] : (t||'').replace(/ 2nd XI.*$/,''); };
-  if(!g.opponent && an.opp) g.opponent = oppName(an.opp);
-  if(!g.venue && an.venue) g.venue = an.venue;
-  if(!g.date && an.date) g.date = an.date;
-  if(!g.result && an.result){ const x = an.result; g.result = / won by /i.test(x) ? (x.split(/ won by /i)[0]===an.qld ? 'Win' : 'Loss') : /drawn|draw/i.test(x) ? 'Draw' : /tied/i.test(x) ? 'Tie' : ''; }
-  an.innings.forEach(i=>{ const k = (i.qld?'q':'o')+i.n; if(!g.scores[k] && !(isLtd(g)?false:sessTotals(g)[k].n)){ const [r,w] = i.score.split('/'); g.scores[k] = `${w}/${r}`; } });
-  // batters
+  if(an.opp) put(g, 'opponent', oppName(an.opp), 'g:opponent');
+  put(g, 'venue', an.venue, 'g:venue');
+  put(g, 'date', an.date, 'g:date');
+  if(an.result){ const x = an.result; put(g, 'result', / won by /i.test(x) ? (x.split(/ won by /i)[0]===an.qld ? 'Win' : 'Loss') : /drawn|draw/i.test(x) ? 'Draw' : /tied/i.test(x) ? 'Tie' : '', 'g:result'); }
+  an.innings.forEach(i=>{ const k = (i.qld?'q':'o')+i.n; if(isLtd(g) || !sessTotals(g)[k].n){ const [r,w] = i.score.split('/'); put(g.scores, k, `${w}/${r}`, 'score:'+k); } });
+  // batters: one innings at a time, keyed on the runs box
   let nb = 0;
   an.bat.forEach(b=>{ let p = find('batters', b.name);
     if(!p){ p = newBatter(); p.name = b.name; p.review = batTemplate(g); g.batters.push(p); }
-    const n = b.n, k = 'i'+n;
-    if(!has(p[k+'r'])){ p[k+'r'] = String(b.r); p[k+'b'] = String(b.b); p[k+'f'] = String(b.f); p[k+'s'] = String(b.s); if(has(b.dot)) p[k+'d'] = String(Math.round(num(b.dot)/100*b.b)); p[k+'no'] = !b.notes.Dismissal || /not out/i.test(b.notes.Dismissal); nb++; }
+    const n = b.n, k = 'i'+n, path = `bat:${pkey(b.name)}:${n}`;
+    if(!mine(p[k+'r'], path)) return;
+    p[k+'r'] = String(b.r); p[k+'b'] = String(b.b); p[k+'f'] = String(b.f); p[k+'s'] = String(b.s); if(has(b.dot)) p[k+'d'] = String(Math.round(num(b.dot)/100*b.b));
+    p[k+'no'] = !b.notes.Dismissal || /not out/i.test(b.notes.Dismissal); own[path] = String(b.r); nb++;
   });
-  // bowlers: figures for each innings from "By innings: inns 2: 2-47 (15) · inns 4: 3-33 (13)"
+  // bowlers: figures for each innings from "By innings: inns 2: 2-47 (15) · inns 4: 3-33 (13)", keyed on the overs box
   let nw = 0;
   an.bowl.forEach(b=>{ let p = find('bowlers', b.name);
     if(!p){ p = newBowler(); p.name = b.name; g.bowlers.push(p); }
     const parts = [...(b.notes['By innings']||'').matchAll(/inns (\d+): (\d+)-(\d+) \(([\d.]+)\)/g)].map(m=>({inn:+m[1], w:m[2], r:m[3], o:m[4]}));
-    if(!parts.length){ // one innings: work out which from the batters bowled to
-      const opp = an.innings.filter(i=>!i.qld); parts.push({inn:b.solo||(opp[0]||{}).inn||2, w:String(b.w), r:String(b.r), o:b.overs, single:true}); }
-    parts.forEach(x=>{ const inn = an.innings.find(i=>i.inn===x.inn), n = inn ? inn.n : 1, k = 'i'+n;
-      if(has(p[k+'o'])) return;
+    if(!parts.length){ const opp = an.innings.filter(i=>!i.qld); parts.push({inn:b.solo||(opp[0]||{}).inn||2, w:String(b.w), r:String(b.r), o:b.overs, single:true}); }
+    parts.forEach(x=>{ const inn = an.innings.find(i=>i.inn===x.inn), n = inn ? inn.n : 1, k = 'i'+n, path = `bowl:${pkey(b.name)}:${n}`;
+      if(!mine(p[k+'o'], path)) return;
       p[k+'o'] = x.o; p[k+'w'] = x.w; p[k+'r'] = x.r;
       if(parts.length===1){ p[k+'m'] = String(b.m); const balls = oversToBalls(x.o); if(has(b.dot)) p[k+'d'] = String(Math.round(num(b.dot)/100*balls)); }
-      nw++; });
+      own[path] = String(x.o); nw++; });
   });
   if(nb) done.push(plural(nb,'batting innings','batting innings'));
   if(nw) done.push(plural(nw,'bowling innings','bowling innings'));
-  // partnerships and milestones the ball-by-ball paste hasn't already filled
+  // partnerships: the analyst's own are replaced each time; ball-by-ball ones stay
   const innOf = t=>{ const m = t.match(/^Inns (\d+)/); const i = m && an.innings.find(x=>x.inn===+m[1]); return i ? i.n : 1; };
+  g.partnerships = g.partnerships.filter(p=>p.auto!=='analyst');
   an.lists.parts.forEach(t=>{ const m = t.match(/^Inns \d+: (.+?) & (.+?): (\d+) for the (\w+) wicket/); if(!m) return; const n = String(innOf(t));
     if(g.partnerships.some(p=>p.innings===n && (p.auto===true || num(p.runs)===+m[3]))) return;
     g.partnerships.push(Object.assign(newPartnership(), {runs:m[3], wicket:m[4], batters:`${anName(m[1])} & ${anName(m[2])}`, innings:n, auto:'analyst'})); });
-  const addBatMs = (name, n, runs, balls, no)=>{
-    if(g.batMilestones.some(x=>x.innings===n && nmSame(x.player, name))) return;
-    const hit = s.batMilestoneTypes.map(t=>({t, v:parseInt(t)})).filter(o=>!isNaN(o.v) && runs>=o.v).sort((a,b)=>b.v-a.v)[0];
-    if(hit) g.batMilestones.push(Object.assign(newMilestone(hit.t), {player:(find('batters',name)||{}).name||name, detail:`${runs}${no?'*':''} (${balls})`, innings:n, auto:true})); };
-  an.lists.milestones.forEach(t=>{ const m = t.match(/^Inns \d+: (.+?) (\d+)(\*?) \((\d+) balls/); if(!m) return; addBatMs(anName(m[1]), String(innOf(t)), +m[2], m[4], !!m[3]); });
-  // and from every batter's own scores, so nothing is missed if the report words a line differently
-  g.batters.forEach(p=>(isLtd(g)?[1]:[1,2]).forEach(n=>{ const k = 'i'+n; if(has(p[k+'r'])) addBatMs(p.name, String(n), num(p[k+'r']), num(p[k+'b']), p[k+'no']); }));
-  an.bowl.forEach(b=>{ const p = find('bowlers', b.name); const parts = [...(b.notes['By innings']||'').matchAll(/inns (\d+): (\d+)-(\d+)/g)];
-    (parts.length ? parts.map(x=>({inn:+x[1], w:+x[2], r:+x[3]})) : [{inn:b.solo||(an.innings.find(i=>!i.qld)||{}).inn, w:b.w, r:b.r}]).forEach(x=>{
-      const inn = an.innings.find(i=>i.inn===x.inn), n = String(inn ? inn.n : 1);
-      if(g.bowlMilestones.some(m=>m.innings===n && nmSame(m.player, b.name))) return;
-      const hit = s.bowlMilestoneTypes.map(t=>({t, v:parseInt(t)})).filter(o=>!isNaN(o.v) && x.w>=o.v).sort((a,b)=>b.v-a.v)[0];
-      if(hit) g.bowlMilestones.push(Object.assign(newMilestone(hit.t), {player:p?p.name:b.name, detail:`${x.w}/${x.r}`, innings:n, auto:true})); }); });
+  // milestones: rebuilt from the players' figures each time, so they follow the scores as the game goes on
+  autoMilestones(g);
   // bowler types for pace v spin
   s.bowlerTypes = s.bowlerTypes||{}; Object.entries(an.types).forEach(([n,t])=>{ s.bowlerTypes[pkey(n)] = t; });
   [...g.batters, ...g.bowlers].forEach(p=>{ const k = Object.keys(an.types).find(n=>nmSame(n, p.name)); if(k) s.bowlerTypes[pkey(p.name)] = an.types[k]; });
-  // fielding: run outs, and the drafts below only where the boxes are empty
-  const ro = (an.field.items['Run-outs / stumpings']||'').match(/^(\d+)/); if(ro && !has(g.fielding.ro)) g.fielding.ro = ro[1];
+  // fielding and the written drafts: filled when empty, refreshed while they are still the analyst's wording
+  const ro = (an.field.items['Run-outs / stumpings']||'').match(/^(\d+)/); if(ro) put(g.fielding, 'ro', ro[1], 'fld:ro');
   const fix = t=>anText(g, t).replace(/^Inns (\d): /, (m,i)=>{ const x = an.innings.find(y=>y.inn===+i); return x ? `${x.n===1?'1st':'2nd'} innings: ` : m; });
-  if(!(g.positives||'').trim() && an.lists.worked.length) g.positives = an.lists.worked.map(fix).join('\n');
-  if(!(g.learnings||'').trim() && an.lists.failed.length) g.learnings = an.lists.failed.map(fix).join('\n');
-  if(!(g.focus||'').trim() && an.lists.teamRecs.length) g.focus = an.lists.teamRecs.map(x=>fix(x.replace(/ \| /, ': '))).join('\n');
+  if(an.lists.worked.length) put(g, 'positives', an.lists.worked.map(fix).join('\n'), 'txt:positives');
+  if(an.lists.failed.length) put(g, 'learnings', an.lists.failed.map(fix).join('\n'), 'txt:learnings');
+  if(an.lists.teamRecs.length) put(g, 'focus', an.lists.teamRecs.map(x=>fix(x.replace(/ \| /, ': '))).join('\n'), 'txt:focus');
+  anFillFielding(g);
+  autoKpis(g);
   const hid = anFillHidden(g); if(hid) done.push(plural(hid,'hidden name'));
   done.push('notes and charts for every player');
   return done;
 }
-
 /* ---- charts drawn from the analyst's data ---- */
 const AN_ZONES = [[0,23,'Yorker'],[23,36,'Full'],[36,49,'Good'],[49,62,'Back of length'],[62,71,'Short'],[71,100,'Bouncer']];
 const SHOT_COL = {0:'#9AA8A8', 1:'#2F6F8F', 4:'#C28B2C', 6:'#A3281C', W:'#111111'};
@@ -3500,7 +3649,7 @@ function battingDoc(g, name){
   let top = '';
   if(ar.length){
     const shots = ar.flatMap(({rec})=>decPts(rec.wheel)), hand = ar[0].rec.hand;
-    const notes = ar.sort((a,b)=>a.n-b.n).map(({n,rec})=>`<div class="d-nh">${lbl(n)}: ${rec.r} (${rec.b}), #${rec.pos}</div>${anNoteList(g, [['Scoring areas',rec.notes['Scoring areas']],['Weakness',rec.notes.Weakness],['Dismissal',rec.notes.Dismissal||'Not out'],['Pace v spin',rec.notes['Pace v spin']],['Pressure',rec.notes.Pressure],['In',rec.notes.Entry]])}`).join('');
+    const notes = ar.sort((a,b)=>a.n-b.n).map(({n,rec})=>`<div class="d-nh">${lbl(n)}: ${rec.r} (${rec.b}), #${rec.pos}</div>${anNoteList(g, [['Scoring areas',rec.notes['Scoring areas']],['Weakness',rec.notes.Weakness],['Dismissal',rec.notes.Dismissal||'Not out'],['Pace v spin',rec.notes['Pace v spin']],['Pressure',rec.notes.Pressure],['Role',rec.notes.Role],['In',rec.notes.Entry]])}`).join('');
     const rep = anReprieves(g, name);
     top = `<div class="d-two wheel">
       <div><h4 class="d-h">Wagon wheel</h4>${wheelSvg(shots, hand, `${hand==='L'?'Left':'Right'}-hander, ${ar.length>1?'both innings':'innings'}`)}${wheelLegend()}</div>
@@ -3555,8 +3704,8 @@ function bowlingDoc(g, name){
     const lens = lengthBars(a.lengths);
     const wh = a.wheels.map(w=>wheelSvg(decPts(w.shots), w.hand, `v ${w.hand==='L'?'left':'right'}-handers`)).join('');
     top = `<div class="d-vis">
-      <h4 class="d-h">Runs conceded</h4><div class="d-wh2">${wh}</div>${wheelLegend()}
-      <div class="d-pl">
+      ${wh ? `<h4 class="d-h">Runs conceded</h4><div class="d-wh2">${wh}</div>${wheelLegend()}` : ''}
+      <div class="d-pl${wh ? '' : ' nowh'}">
         <div><h4 class="d-h">Pitch map</h4>${pitchSvg(decPts(a.pitch))}</div>
         <div><h4 class="d-h">By length</h4>${lens}${anNoteList(g, [['Variation', a.notes.Variation], ['Under pressure', a.notes['Under pressure']]])}</div>
       </div>
