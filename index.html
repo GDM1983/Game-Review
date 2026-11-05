@@ -1021,7 +1021,7 @@ function battingSeason(s){
   }));
   return [...map.values()].map(p=>{ const x = rateOut(p.acc);
     return {...p, avg: p.inns-p.no>0 ? p.runs/(p.inns-p.no) : null, sr: x.sr, dotPct: x.dotPct, bndPct: x.bndPct, bpb: x.bpb,
-      hsText: p.hs<0 ? '–' : p.hs+(p.hsNo?'*':''), reviews: p.entries.filter(e=>cleanReview(e.item.review)).length}; })
+      hsText: p.hs<0 ? '–' : p.hs+(p.hsNo?'*':''), reviews: p.entries.filter(e=>reviewBody(e.item.review)).length}; })
     .sort((a,b)=>b.runs-a.runs || a.name.localeCompare(b.name));
 }
 function bowlingSeason(s){
@@ -1042,7 +1042,7 @@ function bowlingSeason(s){
   return [...map.values()].map(p=>{ const x = rateOut(p.acc);
     return {...p, overs:ballsToOvers(p.balls), avg: p.wkts ? p.runs/p.wkts : null, econ: p.balls ? p.runs/(p.balls/6) : null,
       dotPct: x.dotPct, bndPct: x.bndPct, bpb: x.bpb,
-      bestText: p.best ? `${p.best.w}/${p.best.r}` : '–', reviews: p.entries.filter(e=>cleanReview(e.item.review)).length}; })
+      bestText: p.best ? `${p.best.w}/${p.best.r}` : '–', reviews: p.entries.filter(e=>reviewBody(e.item.review)).length}; })
     .sort((a,b)=>b.wkts-a.wkts || (a.avg??999)-(b.avg??999) || a.name.localeCompare(b.name));
 }
 function partnershipBuckets(games){
@@ -1680,7 +1680,8 @@ function md_sessionPanel(g){
     </div>
   </div>`;
 }
-function openMatch(id, tab){ DT_SEL = {}; view = resetView('match'); view.gameId=id; view.tab=tab||'summary'; openPlayers.clear(); render(); window.scrollTo(0,0); }
+function openMatch(id, tab){ DT_SEL = {}; view = resetView('match'); view.gameId=id;
+  { const g0 = (S()&&S().games||[]).find(x=>x.id===id); if(g0 && (g0.bbb || g0.analyst)){ try{ if(autoDismissals(g0)) touchGame(g0); }catch(e){} } } view.tab=tab||'summary'; openPlayers.clear(); render(); window.scrollTo(0,0); }
 function setTab(t){ view.tab = t; view.addingMetric=false; render(); }
 function setSTab(t){ view.stab = t; view.player = null; render(); }
 function openPlayer(disc, key){ view.stab = disc; view.player = key; render(); window.scrollTo(0,0); }
@@ -1847,7 +1848,7 @@ function draftPlayerSummary(disc, key){
   }else{
     head = `${p.name} bowled ${p.overs} overs, taking ${plural(p.wkts,'wicket')}${p.avg!=null?` at ${f2(p.avg)}`:''} with an E/R of ${f2(p.econ)}. Best figures ${p.bestText}, ${plural(p.maidens,'maiden')}.`;
   }
-  const lines = p.entries.filter(e=>cleanReview(e.item.review)).map(e=>`${gameTitle(e.game)}: ${firstSentence(reviewBody(e.item.review)||cleanReview(e.item.review))}`);
+  const lines = p.entries.filter(e=>reviewBody(e.item.review)).map(e=>`${gameTitle(e.game)}: ${firstSentence(reviewBody(e.item.review)||cleanReview(e.item.review))}`);
   const draft = `${head}\n\nAcross the season:\n${lines.length?lines.join('\n'):'No match reviews recorded yet.'}\n\nStrengths:\n\nWork-ons:\n`;
   setNote(key, disc, draft); render(); toast('Draft added');
 }
@@ -1971,7 +1972,7 @@ function renderDashboard(){
   </div>` : ''}`;
 }
 function matchCard(g){
-  const nb = g.batters.filter(b=>cleanReview(b.review)).length, nw = g.bowlers.filter(b=>cleanReview(b.review)).length;
+  const nb = g.batters.filter(b=>reviewBody(b.review)).length, nw = g.bowlers.filter(b=>reviewBody(b.review)).length;
   const w = gameWtpAvg(g), sc = scoresLine(g);
   const meta = [g.venue, fmtDate(g.date)].filter(Boolean).join(', ');
   return `<button class="match-card ${g.result?'res-'+g.result.toLowerCase():''}" onclick="openMatch('${g.id}')">
@@ -2224,7 +2225,7 @@ function addRole(id, list){
 }
 function removeGroup(id){
   const g = G(), x = groupById(id); if(!x) return; const name = groupName(x);
-  const anything = [x.bat, x.bowl].some(p=>p && cleanReview(p.review));
+  const anything = [x.bat, x.bowl].some(p=>p && reviewBody(p.review));
   if((name || anything) && !confirm(`Remove ${name||'this player'} from this match?`)) return;
   g.batters = g.batters.filter(p=>p!==x.bat); g.bowlers = g.bowlers.filter(p=>p!==x.bowl);
   if(name) delete g.pfield[pkey(name)];
@@ -2254,6 +2255,60 @@ function anFillFielding(g){
     if(d) put(f, 'd', d, `pf:${key}:d`); });
 }
 /* milestones from the players' own figures: replaced each time the figures are filled, so they follow the game */
+/* "1st innings - Caught Orr b Esterhuysen – back of length, outside off, outside edge"
+   From the ball by ball (how, bowler, fielder) and the analyst report (how, bowler, the ball and the shot).
+   A line is only written when it is blank or still holds what was written here before, so typed notes stay. */
+function disSur(n){ const w = (n||'').replace(/\(.*?\)/g,'').trim().split(/\s+/); const s = w[w.length-1]||''; return s ? s[0].toUpperCase()+s.slice(1) : ''; }
+function disFromBall(x){
+  const h = (x.how||'').toLowerCase(), bw = /^\*+$/.test(x.bowler||'') ? '' : disSur(x.bowler), f = x.fielder ? disSur(x.fielder) : '';
+  const B = bw ? ` b ${bw}` : '';
+  if(/run ?out/.test(h)) return `Run out${f?` (${f})`:''}`;
+  if(/caught/.test(h)) return f && bw && nmSame(x.fielder, x.bowler) ? `Caught & bowled ${bw}` : `Caught${f?' '+f:''}${B}`;
+  if(/bowled/.test(h)) return `Bowled${bw?' '+bw:''}`;
+  if(/lbw|leg before/.test(h)) return `LBW${bw?' '+bw:''}`;
+  if(/stump/.test(h)) return `Stumped${f?' '+f:''}${B}`;
+  if(/hit wicket/.test(h)) return `Hit wicket${B}`;
+  if(/retired/.test(h)) return 'Retired';
+  return `Out${B}`;
+}
+function disFromAnalyst(t){
+  t = (t||'').trim(); if(!t) return {mode:'', detail:''};
+  if(/^not out/i.test(t)) return {mode:'Not out', detail:''};
+  const parts = t.split(';').map(s=>s.trim()), head = parts[0];
+  const mm = head.match(/^(.+?)\s*--\s*(.*)$/), how = (mm ? mm[1] : head).trim(), bm = (mm ? mm[2] : '').match(/\bb\s+([^,(;]+)/);
+  const bw = bm ? bm[1].trim().split(/\s+/)[0] : '';
+  let mode = how; if(bw && !/run ?out|retired/i.test(how)) mode = /^(bowled|lbw)$/i.test(how) ? `${how} ${bw}` : `${how} b ${bw}`;
+  const ball = (parts[1]||'').replace(/\s*\/\s*/g, ', ').trim(), shot = ((t.match(/shot quality ([^,;]+)/i)||[])[1]||'').trim();
+  const detail = [ball, shot && !/^-$/.test(shot) ? shot : ''].filter(Boolean).join(', ').toLowerCase();
+  return {mode, detail};
+}
+function disText(g, name, n){
+  let mode = '';
+  const rec = (g.bbb||{})['bat'+n];
+  if(rec){ const bs = bbbBalls(rec), ob = bs.find(x=>x.out && nmSame(x.outName||x.batter, name));
+    if(ob) mode = disFromBall(ob); else if(bs.some(x=>nmSame(x.batter, name))) mode = 'Not out'; }
+  const ar = anRecs(g, 'bat', name).find(r=>(r.n||1)===n), a = disFromAnalyst(ar && ar.rec.notes && ar.rec.notes.Dismissal);
+  if(!mode) mode = a.mode;
+  if(!mode) return '';
+  return mode==='Not out' ? mode : [mode, a.detail].filter(Boolean).join(' – ');
+}
+function autoDismissals(g){
+  let changed = false; g.anOwn = g.anOwn || {};
+  const ltd = isLtd(g);
+  (g.batters||[]).forEach(b=>{ if(!(b.name||'').trim()) return;
+    (ltd ? [1] : [1,2]).forEach(n=>{
+      const text = disText(g, b.name, n); if(!text) return;
+      const path = `dis:${b.id}:${n}`, re = ltd ? /^(\s*Dismissal\s*-)(.*)$/m : new RegExp(`^(\\s*${n===1?'1st':'2nd'} innings\\s*-)(.*)$`, 'm');
+      let rv = b.review || '';
+      if(!re.test(rv)){ if(/dismissal/i.test(rv)) return; rv = batTemplate(g) + rv.replace(/^\s+/,''); }
+      const m = rv.match(re), cur = m[2].trim();
+      if(cur && cur!==g.anOwn[path]) return;
+      if(cur===text && rv===b.review) return;
+      b.review = rv.replace(re, `$1 ${text}`); g.anOwn[path] = text; changed = true;
+    });
+  });
+  return changed;
+}
 function autoMilestones(g){
   const s = S(), ns = isLtd(g) ? [1] : [1,2];
   g.batMilestones = g.batMilestones.filter(m=>!m.auto); g.bowlMilestones = g.bowlMilestones.filter(m=>!m.auto);
@@ -2510,6 +2565,7 @@ function parseBbbNew(lines){
     else ok = bbbOutcome(sym, res, ball);
     if(!ok || sp.bt.length>40) unread.push(`${lines[i]} ${sym} ${m[0]}`.replace(/\s+/g,' '));
     if(ball.out){ const dn = bbbDismissedName(res); if(dn && pkey(dn)!==pkey(ball.batter)) ball.dismissed = dn;
+      const fm = (res||'').match(/\b(?:caught|run ?out|stumped)\s+by\s+([A-Za-z][A-Za-z.' -]{1,40}?)\s*[.!]?$/i); if(fm) ball.fielder = fm[1].trim();
       const card = readCard(lines, j+1+(sp.res?0:1)); if(card) cards.push(Object.assign(card, {short:ball.dismissed||ball.batter, how:ball.how})); }
     balls.push(ball);
   }
@@ -2645,6 +2701,8 @@ function parseBallByBall(text){
   // the page lists the latest ball first; put them in playing order
   const key = x=>{ const [o,b] = x.ov.split('.'); return +o*10 + +b; };
   if(balls.length>1 && key(balls[0]) >= key(balls[balls.length-1])) balls.reverse();
+  balls.forEach(x=>{ if(!x.out || x.fielder) return; const c = cards.find(c=>c.short===(x.dismissed||x.batter)); const t = (c && c.dismissal) || '';
+    const m = t.match(/\bc:\s*([^,]+)/i) || t.match(/\bst:\s*([^,]+)/i) || t.match(/run ?out\s*[:(]?\s*([^,)]+)/i); if(m) x.fielder = m[1].trim(); });
   return summarise(balls, cards, overBowler, team, topScore, unread);
 }
 function parseOutcome(res, ball){
@@ -2841,7 +2899,7 @@ function bbbStore(g, side, n, r, rows){
   const enc = r.balls.map(x=>{
     const bw = nm(x.bowler, side==='bowl'), bt = nm(x.batter, side==='bat');
     const ex = ['nb','wd','b','lb'].filter(k=>x[k]).map(k=>`+${x[k]}${k}`).join('');
-    return `${x.ov},${idx(bw)},${idx(bt)},${x.bat}${ex}${x.out?'!'+(x.how||'Out').replace(/[~;,]/g,' ')+(x.dismissed?'~'+idx(nm(x.dismissed, side==='bat')):''):''}`;
+    return `${x.ov},${idx(bw)},${idx(bt)},${x.bat}${ex}${x.out?'!'+(x.how||'Out').replace(/[~;,^]/g,' ')+(x.fielder?'^'+x.fielder.replace(/[~;,^]/g,' '):'')+(x.dismissed?'~'+idx(nm(x.dismissed, side==='bat')):''):''}`;
   }).join(';');
   g.bbb = g.bbb || {};
   g.bbb[side+n] = {team:r.team, names, balls:enc};
@@ -2850,7 +2908,7 @@ function bbbBalls(rec){
   if(!rec || !rec.balls) return [];
   return rec.balls.split(';').map(s=>{
     const [ov, bw, bt, res] = s.split(','); const m = res.match(/^(\d+)((?:\+\d+[a-z]+)*)(?:!(.*))?$/) || [];
-    const x = {ov, over: Math.floor(parseFloat(ov))+1, bowler: rec.names[+bw]||'', batter: rec.names[+bt]||'', bat:+(m[1]||0), nb:0, wd:0, b:0, lb:0, out: m[3]!==undefined, how: (m[3]||'').split('~')[0]};
+    const x = {ov, over: Math.floor(parseFloat(ov))+1, bowler: rec.names[+bw]||'', batter: rec.names[+bt]||'', bat:+(m[1]||0), nb:0, wd:0, b:0, lb:0, out: m[3]!==undefined, how: (m[3]||'').split('~')[0].split('^')[0], fielder: (m[3]||'').split('~')[0].split('^')[1]||''};
     const dn = (m[3]||'').split('~')[1]; x.outName = x.out ? (dn!==undefined && rec.names[+dn] ? rec.names[+dn] : x.batter) : '';
     (m[2]||'').replace(/\+(\d+)([a-z]+)/g, (_,v,k)=>{ x[k] = +v; return ''; });
     return x;
@@ -2909,6 +2967,7 @@ function bbbApply(){
   });
   autoMilestones(g);
   autoKpis(g);
+  autoDismissals(g);
   // limited overs: the overs breakdown for that innings
   if(isLtd(g)){ const side = bat ? 'bat' : 'bowl';
     segs(g, side).forEach(sg=>{
@@ -3673,6 +3732,7 @@ function anApply(g){
   if(an.lists.teamRecs.length) put(g, 'focus', an.lists.teamRecs.map(x=>fix(x.replace(/ \| /, ': '))).join('\n'), 'txt:focus');
   anFillFielding(g);
   autoKpis(g);
+  autoDismissals(g);
   const hid = anFillHidden(g); if(hid) done.push(plural(hid,'hidden name'));
   done.push('notes and charts for every player');
   return done;
