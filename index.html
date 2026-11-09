@@ -1689,7 +1689,7 @@ function md_sessionPanel(g){
   </div>`;
 }
 function openMatch(id, tab){ DT_SEL = {}; view = resetView('match'); view.gameId=id;
-  { const g0 = (S()&&S().games||[]).find(x=>x.id===id); if(g0 && (g0.bbb || g0.analyst)){ try{ if(g0.analyst) anRepairNotes(g0.analyst); const a = g0.analyst ? anDedupeSolo(g0) : false; if(autoDismissals(g0) || a) touchGame(g0); }catch(e){} } } view.tab=tab||'summary'; openPlayers.clear(); render(); window.scrollTo(0,0); }
+  { const g0 = (S()&&S().games||[]).find(x=>x.id===id); if(g0 && (g0.bbb || g0.analyst)){ try{ if(g0.analyst) anRepairNotes(g0.analyst); const a = (g0.analyst ? anDedupeSolo(g0) : false) | bbbRefile(g0); if(autoDismissals(g0) || a) touchGame(g0); }catch(e){} } } view.tab=tab||'summary'; openPlayers.clear(); render(); window.scrollTo(0,0); }
 function setTab(t){ view.tab = t; view.addingMetric=false; render(); }
 function setSTab(t){ view.stab = t; view.player = null; render(); }
 function openPlayer(disc, key){ view.stab = disc; view.player = key; render(); window.scrollTo(0,0); }
@@ -2942,6 +2942,7 @@ function scApply(){
       const f = g.pfield[kk] = Object.assign({c:'', d:'', ro:'', notes:''}, g.pfield[kk]||{});
       [['c', e.c], ['ro', e.ro]].forEach(([fk, v])=>{ const path = `pf:${kk}:${fk}`; if(f[fk]!=='' && f[fk]!==undefined && own[path]!==String(f[fk]) && src[path]!=='sc') return; f[fk] = v ? String(v) : (f[fk]||''); own[path] = String(f[fk]); src[path] = 'sc'; }); });
   }
+  bbbRefile(g);
   autoMilestones(g); autoKpis(g); autoDismissals(g);
   touchGame(g); closeModal(); render();
   toast(`Filled ${qb?'QLD batting':'QLD bowling'}, ${n===1?'1st':'2nd'} innings from the scorecard`);
@@ -3844,27 +3845,36 @@ function anSoloInnings(g, b, opp){
   const pick = cands.find(i=>i.inn===b.solo) || cands[0] || opp.find(i=>i.inn===b.solo) || opp[0];
   return pick.inn;
 }
-/* A paste filed under the wrong innings (no header to go on): when the analyst's innings scores show which
-   innings it really is, and that innings has no paste yet, move it there. Figures the paste wrote to the old
-   innings are cleared so the analyst's go in. */
-function bbbRefile(g, an){
-  if(!g.bbb || !an || !an.innings) return;
-  const off = {};
-  an.innings.forEach(i=>{ const [r,w] = String(i.score).split('/'); off[(i.qld?'bat':'bowl')+i.n] = {r:+r, w:+(w||10)}; });
-  Object.keys(g.bbb).slice().forEach(k=>{
-    const bs = bbbBalls(g.bbb[k]); if(!bs.length) return;
-    const t = {r: bs.reduce((m,x)=>m+x.bat+x.nb+x.wd+x.b+x.lb, 0), w: bs.filter(x=>x.out).length};
-    const near = o=>o && o.w===t.w && Math.abs(o.r-t.r)<=8;
-    if(near(off[k])) return;
-    const to = Object.keys(off).find(j=>j!==k && !g.bbb[j] && near(off[j]) && j.slice(0,-1)===k.slice(0,-1)) || Object.keys(off).find(j=>j!==k && !g.bbb[j] && near(off[j]));
-    if(!to) return;
-    g.bbb[to] = g.bbb[k]; delete g.bbb[k];
-    const own = g.anOwn = g.anOwn||{}, src = g.anSrc = g.anSrc||{}, n = k.slice(-1), side = k.slice(0,-1);
-    const sk = (side==='bat'?'q':'o')+n; if(src['score:'+sk]==='bbb'){ g.scores[sk] = ''; delete own['score:'+sk]; delete src['score:'+sk]; }
+/* A paste filed under the wrong innings (no header to go on, or a misread report): each pasted innings is matched
+   to the official innings scores (the scorecard first, then the analyst report) on wickets and runs, and moved
+   (or swapped) to the innings it really is. Figures the paste wrote to the wrong innings are cleared; the
+   scorecard's and analyst's stay. Player reports draw on these deliveries, so this keeps them in the right innings. */
+function bbbOfficial(g){
+  const off = {}, an = g.analyst;
+  if(an && an.innings) an.innings.forEach(i=>{ const [r,w] = String(i.score).split('/'); off[(i.qld?'bat':'bowl')+i.n] = {r:+r, w:+(w||10)}; });
+  Object.entries(g.scorecards||{}).forEach(([k, sc])=>{ if(sc && sc.runs!=null) off[(k[0]==='q'?'bat':'bowl')+k.slice(1)] = {r:+sc.runs, w:+sc.wkts}; });
+  return off;
+}
+function bbbRefile(g){
+  if(!g.bbb) return false;
+  const off = bbbOfficial(g); if(!Object.keys(off).length) return false;
+  const keys = Object.keys(g.bbb), tot = {};
+  keys.forEach(k=>{ const bs = bbbBalls(g.bbb[k]); tot[k] = {r: bs.reduce((m,x)=>m+x.bat+x.nb+x.wd+x.b+x.lb, 0), w: bs.filter(x=>x.out).length, n: bs.length}; });
+  const dist = (t, o)=> o && t.n && o.w===t.w ? Math.abs(o.r-t.r) : 999;
+  const home = {}; keys.forEach(k=>{ const best = Object.keys(off).map(j=>[j, dist(tot[k], off[j])]).filter(x=>x[1]<=8).sort((a,b)=>a[1]-b[1] || (a[0]===k?-1:b[0]===k?1:0))[0]; home[k] = best ? best[0] : null; });
+  const moved = keys.filter(k=>home[k] && home[k]!==k);
+  if(!moved.length) return false;
+  const next = {};
+  keys.forEach(k=>{ if(home[k]) next[home[k]] = next[home[k]] || g.bbb[k]; });
+  keys.forEach(k=>{ if(!home[k] && !next[k]) next[k] = g.bbb[k]; });   // unmatched (a live innings): stays where it was if the slot is free
+  const own = g.anOwn = g.anOwn||{}, src = g.anSrc = g.anSrc||{};
+  moved.forEach(k=>{ const n = k.slice(-1), side = k.slice(0,-1), sk = (side==='bat'?'q':'o')+n;
+    if(src['score:'+sk]==='bbb'){ g.scores[sk] = ''; delete own['score:'+sk]; delete src['score:'+sk]; }
     (side==='bat' ? g.batters : g.bowlers).forEach(p=>{ const path = `${side}:${p.id}:${n}`; if(src[path]!=='bbb') return;
       (side==='bat' ? ['r','b','f','s','d'] : ['o','m','r','w','f','s','d']).forEach(f=>{ p['i'+n+f] = ''; }); if(side==='bat') p['i'+n+'no'] = false;
-      delete own[path]; delete src[path]; });
-  });
+      delete own[path]; delete src[path]; }); });
+  g.bbb = next;
+  return true;
 }
 /* A bowler the report has in one innings only, whose figures also sit word for word in the other innings
    (left there by an earlier misread report): the copy goes. The other innings stays if a pasted ball by ball has him in it. */
@@ -3989,7 +3999,7 @@ function anApply(g){
   const an = g.analyst, s = S(), done = [];
   const own = g.anOwn = g.anOwn || {}, src = g.anSrc = g.anSrc || {};
   anRepairNotes(an);
-  bbbRefile(g, an);
+  bbbRefile(g);
   Object.keys(own).forEach(path=>{ const m = path.match(/^(bat|bowl):(.+):(\d)$/); if(!m || src[path]!=='an') return;
     const bat = m[1]==='bat', p = (bat ? g.batters : g.bowlers).find(x=>x.id===m[2]), k = 'i'+m[3]; if(!p) return;
     if(String(p[k+(bat?'r':'o')]??'')!==own[path]) return;   // changed by hand: left alone
@@ -4274,8 +4284,15 @@ function bowlingDoc(g, name){
   const innRows = !useBbb ? cardRows : docInnRows(g, 'bowl', inns, ({n,balls})=>{ const t = bowlFromBalls(balls); return [`${n===1?'1st':'2nd'} innings`, ballsToOvers(t.balls), t.m, t.r, t.w, dER(t), dDot(t.d,t.balls), dBPB(t.balls,t.f+t.s), t.wd+t.nb ? `${t.wd} wd, ${t.nb} nb` : '–']; }, 7);
   if(a && useBbb){ [...(a.notes['By innings']||'').matchAll(/inns (\d+): (\d+)-(\d+) \(([\d.]+)\)/g)].forEach(m=>{ const inn = g.analyst.innings.find(i=>i.inn===+m[1]); if(!inn || inns.some(i=>i.n===inn.n)) return;
     const row = innRows.find(r=>r[0]===`${inn.n===1?'1st':'2nd'} innings`); if(row) row.splice(1, row.length-1, m[4], '–', m[3], m[2], f2(num(m[3])/(oversToBalls(m[4])/6)), '–', '–', '–'); }); }
+  // the overs, maidens, runs and wickets in each innings are the player's card (the scorecard's, where filled); the deliveries give the rest
+  if(p && useBbb) innRows.forEach(row=>{ const n = row[0]==='1st innings' ? 1 : row[0]==='2nd innings' ? 2 : 0, k = 'i'+n; if(!n || !has(p[k+'o'])) return;
+    const b = oversToBalls(p[k+'o']); row[1] = p[k+'o']; row[2] = has(p[k+'m']) ? p[k+'m'] : row[2]; row[3] = num(p[k+'r']); row[4] = num(p[k+'w']); row[5] = b ? f2(num(p[k+'r'])/(b/6)) : '–';
+    if(!inns.some(i=>i.n===n)) row.splice(6, row.length-6, '–', '–', '–'); });
   if(a && useBbb && innRows.some(r=>r[2]==='–' && r[1]!=='–')) innRows.push(['Match', a.overs, a.m, a.r, a.w, a.econ, a.dot+'%', '–', `${a.wd} wd, ${a.nb} nb`]);
   else if(useBbb && (inns.length>1 || !isLtd(g))) innRows.push(['Match', ballsToOvers(all.balls), all.m, all.r, all.w, dER(all), dDot(all.d,all.balls), dBPB(all.balls,all.f+all.s), all.wd+all.nb ? `${all.wd} wd, ${all.nb} nb` : '–']);
+  if(p && useBbb){ const ci = (isLtd(g)?[1]:[1,2]).filter(n=>has(p['i'+n+'o'])), mr = innRows.find(r=>r[0]==='Match');
+    if(ci.length && mr){ const b = ci.reduce((m,n)=>m+oversToBalls(p['i'+n+'o']),0), r = ci.reduce((m,n)=>m+num(p['i'+n+'r']),0);
+      mr[1] = ballsToOvers(b); mr[2] = ci.reduce((m,n)=>m+num(p['i'+n+'m']),0); mr[3] = r; mr[4] = ci.reduce((m,n)=>m+num(p['i'+n+'w']),0); mr[5] = b ? f2(r/(b/6)) : '–'; } }
   // matchups
   let vsHtml = '';
   if(a && a.vs.length) vsHtml = docTable(['Batter','Balls','Runs','Wkts','Batter S/R'], a.vs.map(v=>[esc(docShort(v.batter)), v.b, v.r, v.w, v.sr])) + anNoteList(g, [['By hand', a.notes.Matchups]]);
