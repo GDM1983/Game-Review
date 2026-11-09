@@ -408,6 +408,7 @@
   .dc-vals{display:flex;flex-wrap:wrap;gap:4px 14px;color:var(--ink-soft);} .dc-doc{color:var(--clay,#a3281c);font-weight:600;}
   .dc-btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
   @media (max-width:640px){ .dc-row{grid-template-columns:1fr;} .dc-btns{justify-content:flex-start;} }
+  .sc-src{margin-bottom:10px;}
   .modal-body{padding:6px 22px 22px;}
   .modal-section{border-top:1px solid var(--line);padding-top:16px;margin-top:16px;}
   .modal-section:first-child{border-top:none;margin-top:4px;padding-top:4px;}
@@ -2815,13 +2816,17 @@ let scf = {text:'', r:null, pick:null};
 function scIsQld(code){ return /^(QU|QLD|QB)/i.test(code||''); }
 function scNum(s){ const v = String(s||'').replace('*','').trim(); return v==='' || v==='-' ? 0 : +v; }
 function scParse(text){
-  const ls = (text||'').split(/\r?\n/).map(l=>l.replace(/\u00a0/g,' ').trim());
+  const ls = scExpand((text||'').split(/\r?\n/).map(l=>l.replace(/\u00a0/g,' ').trim()));
   const r = {tabs:[], bat:[], bowl:[], field:[], fow:[], extras:null, total:null, overs:'', teams:[], result:''};
   ls.forEach((l,i)=>{ const m = l.match(/^(1st|2nd) ([A-Z]{2,4})$/); if(!m) return;
     const v = (ls[i+1]||'').match(/^(?:(\d+)d-)?(\d+)$/); if(v) r.tabs.push({inn: m[1]==='1st'?1:2, code:m[2], runs:+v[2], decW: v[1]!==undefined ? +v[1] : null}); });
   const res = ls.find(l=>/ won by | drawn$|^drawn|match drawn| tied|abandoned|no result/i.test(l)); if(res) r.result = res;
   const si = ls.findIndex(l=>/^Scorecard$/.test(l)), ci = ls.findIndex(l=>/^(COMPLETED|LIVE|IN PROGRESS|STUMPS|RESULT)$/i.test(l));
-  r.teams = ls.slice(0, si>0 ? si : ls.length).filter(l=>/^[A-Z][A-Za-z .'&-]{3,}$/.test(l) && !/^[A-Z ]+$/.test(l) && !/ won by |^(Skip|Play|Community|Competitions|Stats|PlayHQ|Support|Search|Round|Toyota|Greg|Scorecard|Ball by ball|Highlights|Graphs|Summary)\b/i.test(l) && !/Logo|window/i.test(l));
+  const stopAt = [si, ls.findIndex(l=>/^(1st|2nd) [A-Z]{2,4}$/.test(l)), ls.findIndex(l=>/^Batting\b/.test(l))].filter(x=>x>0);
+  const headLs = ls.slice(0, stopAt.length ? Math.min(...stopAt) : ls.length).map(l=>l.replace(/\s+(?:\d+d?-)?\d+(?:\.\d)?(?:\s*&\s*(?:(?:\d+d?-)?\d+(?:\.\d)?)?)*\s*$/,'').trim());
+  const known = /^(Western Australia|Victoria|New South Wales|South Australia|Tasmania|Queensland|ACT|ACT Comets|Northern Territory|Cricket Australia XI|New Zealand)\b/i;
+  r.teams = headLs.filter(l=>known.test(l)).map(l=>l.match(known)[0]);
+  if(r.teams.length < 2) r.teams = r.teams.concat(headLs.filter(l=>/^[A-Z][A-Za-z .'&-]{3,}$/.test(l) && !/^[A-Z ]+$/.test(l) && !/ won by |^(Skip|Play|Community|Competitions|Stats|PlayHQ|Support|Search|Round|Toyota|Greg|Scorecard|Ball by ball|Highlights|Graphs|Summary)\b/i.test(l) && !/Logo|window/i.test(l)));
   // batting
   const bi = ls.findIndex(l=>/^Batting\b/.test(l)), ei = ls.findIndex((l,i)=>i>bi && /^Extras$/i.test(l));
   if(bi>=0 && ei>bi){
@@ -2881,12 +2886,59 @@ function openScorecardFill(){
     <div class="modal bbb-modal" role="dialog" aria-modal="true" aria-label="Fill from scorecard">
       <div class="modal-head"><div class="modal-title">Fill from scorecard</div><button class="icon-btn" onclick="closeModal()" aria-label="Close">×</button></div>
       <div class="modal-body">
+        <div class="sc-src"><label class="ghost-btn" style="cursor:pointer;">Upload scorecard PDF<input type="file" accept="application/pdf,.pdf" style="display:none" onchange="scPdf(this.files[0])"></label></div>
         <textarea id="sc-text" class="bbb-text" aria-label="Scorecard page" oninput="scRead(this.value)"></textarea>
         <div id="sc-preview"></div>
       </div>
     </div>
   </div>`;
   setTimeout(()=>{ const t = document.getElementById('sc-text'); if(t) t.focus(); }, 20);
+}
+/* A scorecard PDF: its text laid out line by line, columns split with tabs, then read as a pasted page.
+   A PDF can hold more than one innings: each is read and the one picked is filled. */
+async function scPdf(file){
+  if(!file) return; toast('Reading the scorecard…');
+  try{
+    const lib = await loadPdfJs(), pdf = await lib.getDocument({data: new Uint8Array(await file.arrayBuffer())}).promise;
+    const out = [];
+    for(let pn = 1; pn <= pdf.numPages; pn++){
+      const page = await pdf.getPage(pn), tc = await page.getTextContent();
+      const items = tc.items.filter(it=>it.str && it.str.trim()).map(it=>({s:it.str.replace(/ /g,' '), x:it.transform[4], y:it.transform[5], w:it.width||0, h:Math.abs(it.transform[3])||8}));
+      items.sort((a,b)=>b.y-a.y || a.x-b.x);
+      const rows = [];
+      items.forEach(it=>{ const r = rows.find(r=>Math.abs(r.y-it.y) <= Math.max(2, it.h*0.35)); if(r) r.items.push(it); else rows.push({y:it.y, items:[it]}); });
+      rows.sort((a,b)=>b.y-a.y).forEach(r=>{ r.items.sort((a,b)=>a.x-b.x); let line = '', end = null;
+        r.items.forEach(it=>{ if(end===null) line = it.s.trim(); else line += (it.x - end > Math.max(6, it.h*0.9) ? '\t' : (it.x - end > 0.5 ? ' ' : '')) + it.s.trim(); end = it.x + it.w; });
+        out.push(line); });
+    }
+    const t = document.getElementById('sc-text'), text = out.join('\n'); if(t) t.value = text;
+    scRead(text);
+    if(!scf.r || (!scf.r.bat.length && !scf.r.bowl.length)) toast('No scorecard found in that PDF');
+  }catch(e){ toast("Couldn't read that PDF"); }
+}
+/* the PDF puts a whole row on one line: lay it out the way the pasted page has it */
+function scExpand(ls){
+  const out = []; let sec = '';
+  ls.forEach(l=>{
+    if(/^Batting\b/.test(l)){ sec = 'bat'; out.push(l); return; }
+    if(/^Bowling\b/.test(l)){ sec = 'bowl'; out.push(l); return; }
+    if(/^Fielding\b/.test(l)){ sec = 'field'; out.push(l); return; }
+    if(/^Fall of Wickets/i.test(l)){ sec = 'fow'; out.push('Fall of Wickets'); const rest = l.replace(/^Fall of Wickets\s*/i,''); if(rest) l = rest; else return; }
+    const tabs = [...l.matchAll(/\b(1st|2nd)\s+([A-Z]{2,4})\s+((?:\d+d-)?\d+)\b/g)];
+    if(tabs.length && !sec){ tabs.forEach(m=>{ out.push(`${m[1]} ${m[2]}`, m[3]); }); return; }
+    const parts = l.split('\t').map(x=>x.trim()).filter(Boolean);
+    if(sec==='bat'){
+      if(/^Extras\b/i.test(l) && parts.length>1){ const ex = l.match(/\(([^)]*)\)/), n = l.match(/(\d+)\s*$/); out.push('Extras', ex ? `(${ex[1]})` : '', n ? n[1] : ''); return; }
+      if(/^Total\b/i.test(l) && parts.length>1){ const ov = l.match(/([\d.]+\s*Overs?[^\t]*\))/i), n = l.match(/(\d+)\s*$/); out.push('Total', ov ? ov[1] : '', n ? n[1] : ''); sec = 'post'; return; }
+      if(parts.length>=2 && /^did not bat$/i.test(parts[parts.length-1])){ out.push(parts.slice(0,-1).join(' '), 'did not bat'); return; }
+      const num = x=>/^[\d.]+\*?$/.test(x);
+      let k = parts.length; while(k>0 && num(parts[k-1])) k--;
+      if(parts.length - k >= 4 && k >= 1){ const head = parts.slice(0,k); out.push(head[0], head.slice(1).join(' ') || '', parts.slice(k).join('\t')); return; }
+    }
+    if(sec==='fow'){ const m = [...l.matchAll(/(\d+)-(\d+)\s+(.+?\((?:[^()]|\([^()]*\))*\))/g)]; if(m.length){ m.forEach(x=>out.push(`${x[1]}-${x[2]}`, x[3].trim())); return; } }
+    out.push(parts.length>1 && (sec==='bowl' || sec==='field') ? parts.join('\t') : l);
+  });
+  return out;
 }
 function scRead(text){
   scf.text = text; const r = scParse(text); scf.r = r; scf.pick = r.tab;
@@ -3185,6 +3237,8 @@ function playerBalls(g, kind, name){
   const out = [];
   [1,2].forEach(n=>{ const rec = (g.bbb||{})[(kind==='bat'?'bat':'bowl')+n]; if(!rec) return;
     const all = bbbBalls(rec);
+    const sc = (g.scorecards||{})[(kind==='bat'?'q':'o')+n];
+    if(sc && sc.runs!=null){ const r = all.reduce((m,x)=>m+x.bat+x.nb+x.wd+x.b+x.lb, 0), w = all.filter(x=>x.out).length; if(w!==+sc.wkts || Math.abs(r - +sc.runs) > 8) return; }
     if(kind!=='bat'){ const bs = all.filter(x=>pkey(x.bowler)===pkey(name)); if(bs.length) out.push({n, balls:bs}); return; }
     const bs = all.filter(x=>pkey(x.batter)===pkey(name)).map(x=>({...x, out: x.out && pkey(x.outName)===pkey(name)}));
     const ob = all.find(x=>x.out && pkey(x.outName)===pkey(name));
@@ -3224,7 +3278,7 @@ function docShell(g, kind, name, strip, body){
 function docInnRows(g, kind, inns, row, dashes){
   const ns = isLtd(g) ? [1] : [1,2];
   return ns.map(n=>{ const it = inns.find(i=>i.n===n); if(it) return row(it);
-    const filled = (g.bbb||{})[(kind==='bat'?'bat':'bowl')+n];
+    const filled = (g.bbb||{})[(kind==='bat'?'bat':'bowl')+n] || (g.scorecards||{})[(kind==='bat'?'q':'o')+n];
     return [`${n===1?'1st':'2nd'} innings`, ...Array(dashes).fill('–'), filled ? (kind==='bat'?'Did not bat':'Did not bowl') : 'Not entered']; });
 }
 function docFeedback(p){
