@@ -1681,7 +1681,7 @@ function md_sessionPanel(g){
   </div>`;
 }
 function openMatch(id, tab){ DT_SEL = {}; view = resetView('match'); view.gameId=id;
-  { const g0 = (S()&&S().games||[]).find(x=>x.id===id); if(g0 && (g0.bbb || g0.analyst)){ try{ if(autoDismissals(g0)) touchGame(g0); }catch(e){} } } view.tab=tab||'summary'; openPlayers.clear(); render(); window.scrollTo(0,0); }
+  { const g0 = (S()&&S().games||[]).find(x=>x.id===id); if(g0 && (g0.bbb || g0.analyst)){ try{ const a = g0.analyst ? anDedupeSolo(g0) : false; if(autoDismissals(g0) || a) touchGame(g0); }catch(e){} } } view.tab=tab||'summary'; openPlayers.clear(); render(); window.scrollTo(0,0); }
 function setTab(t){ view.tab = t; view.addingMetric=false; render(); }
 function setSTab(t){ view.stab = t; view.player = null; render(); }
 function openPlayer(disc, key){ view.stab = disc; view.player = key; render(); window.scrollTo(0,0); }
@@ -3715,6 +3715,23 @@ function bbbRefile(g, an){
       delete own[path]; delete src[path]; });
   });
 }
+/* A bowler the report has in one innings only, whose figures also sit word for word in the other innings
+   (left there by an earlier misread report): the copy goes. The other innings stays if a pasted ball by ball has him in it. */
+function anDedupeSolo(g){
+  const an = g.analyst; if(!an || !an.bowl) return false;
+  let changed = false;
+  const opp = an.innings.filter(i=>!i.qld);
+  an.bowl.forEach(b0=>{ const b = anX('bowl', b0); if((b.notes||{})['By innings']) return;
+    const p = g.bowlers.find(x=>nmSame(x.name, b.name)); if(!p) return;
+    const keep = (an.innings.find(i=>i.inn===anSoloInnings(g, b, opp))||{}).n || 1, drop = keep===1 ? 2 : 1;
+    const same = ['o','r','w'].every(f=>has(p['i'+drop+f]) && String(p['i'+drop+f])===String(p['i'+keep+f]));
+    const rec = (g.bbb||{})['bowl'+drop], inPaste = rec && rec.names.some(x=>nmSame(x, p.name) || nmSame(x, b.name));
+    if(!same || inPaste) return;
+    ['o','m','r','w','d','f','s'].forEach(f=>{ p['i'+drop+f] = ''; });
+    const path = `bowl:${p.id}:${drop}`; if(g.anOwn) delete g.anOwn[path]; if(g.anSrc) delete g.anSrc[path];
+    changed = true; });
+  return changed;
+}
 function anApply(g){
   const an = g.analyst, s = S(), done = [];
   const own = g.anOwn = g.anOwn || {}, src = g.anSrc = g.anSrc || {};
@@ -3785,6 +3802,7 @@ function anApply(g){
   anFillFielding(g);
   autoKpis(g);
   autoDismissals(g);
+  anDedupeSolo(g);
   const hid = anFillHidden(g); if(hid) done.push(plural(hid,'hidden name'));
   done.push('notes and charts for every player');
   return done;
