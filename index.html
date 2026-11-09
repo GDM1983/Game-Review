@@ -401,6 +401,13 @@
   .modal{background:var(--paper);border-radius:18px;max-width:640px;width:100%;box-shadow:0 30px 60px -20px rgba(0,0,0,.35);}
   .modal-head{display:flex;justify-content:space-between;align-items:center;padding:20px 22px 6px;}
   .modal-title{font-family:var(--serif);font-weight:650;font-size:21px;color:var(--ink);}
+  .dc-ok{font-size:14px;color:var(--ink-soft);}
+  .dc-list{display:flex;flex-direction:column;gap:8px;}
+  .dc-row{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,2fr) auto;gap:10px;align-items:center;background:var(--bone);border-radius:10px;padding:10px 12px;font-size:13.5px;}
+  .dc-who span{color:var(--ink-soft);margin-left:4px;}
+  .dc-vals{display:flex;flex-wrap:wrap;gap:4px 14px;color:var(--ink-soft);} .dc-doc{color:var(--clay,#a3281c);font-weight:600;}
+  .dc-btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
+  @media (max-width:640px){ .dc-row{grid-template-columns:1fr;} .dc-btns{justify-content:flex-start;} }
   .modal-body{padding:6px 22px 22px;}
   .modal-section{border-top:1px solid var(--line);padding-top:16px;margin-top:16px;}
   .modal-section:first-child{border-top:none;margin-top:4px;padding-top:4px;}
@@ -1876,6 +1883,7 @@ const LIVE = {
   dayTotal: d=>dayTotalInner(d),
   sessTally: ()=>tallyInner(),
   innScores: ()=>innScoresInner(),
+  dataCheck: ()=>dataCheckInner(),
   kpiMaidens: ()=>{ const a=document.activeElement; return (a && a.closest && a.closest('[data-live="kpiMaidens"]')) ? null : kpiCellsInner('maidens'); },
   kpiTotal: id=>kpiTotalInner(id),
   kpiPct: a=>{ const [id,inn]=a.split(':'); const m=S().bowlMetrics.find(x=>x.id===id); return m ? kpiPct(G(), m, +inn) : ''; },
@@ -2058,6 +2066,7 @@ function tabSummary(g){
     <div class="panel-head"><div class="panel-title">${LE('gs.scores')}</div></div>
     <div data-live="innScores">${innScoresInner()}</div>
   </div>
+  <div class="panel"><div class="panel-head"><div class="panel-title">Data check</div></div><div data-live="dataCheck">${dataCheckInner()}</div></div>
   ${isLtd(g)?standardsPanel(g):''}
 
   <div class="panel">
@@ -3731,6 +3740,82 @@ function anDedupeSolo(g){
     const path = `bowl:${p.id}:${drop}`; if(g.anOwn) delete g.anOwn[path]; if(g.anSrc) delete g.anSrc[path];
     changed = true; });
   return changed;
+}
+/* ============================= DATA CHECK =============================
+   Every player's figures on the match, innings by innings, against the two sources: the ball by ball for that
+   innings (exact, ball for ball) and the analyst report. Anything that doesn't match is listed with what each
+   source says and a button to take that source's figures. Team checks: wickets and runs against the innings score. */
+function dcBallFigures(rec){   // per player, from one innings of deliveries
+  const bowl = {}, bat = {};
+  bbbBalls(rec).forEach(x=>{
+    const w = bowl[x.bowler] = bowl[x.bowler] || {balls:0, r:0, w:0};
+    if(!x.wd && !x.nb) w.balls++; w.r += x.bat + x.wd + x.nb; if(x.out && !/run ?out|retired|obstruct/i.test(x.how)) w.w++;
+    const b = bat[x.batter] = bat[x.batter] || {r:0, b:0}; if(!x.wd) b.b++; b.r += x.bat;
+  });
+  return {bowl, bat};
+}
+function dcAnBowl(g, name, n){   // the analyst's figures for a QLD bowler in QLD's bowling innings n
+  const an = g.analyst; if(!an) return null;
+  const r0 = an.bowl.find(b=>nmSame(b.name, name)); if(!r0) return null; const b = anX('bowl', r0);
+  let parts = [...((b.notes||{})['By innings']||'').matchAll(/inns (\d+): (\d+)-(\d+) \(([\d.]+)\)/g)].map(m=>({inn:+m[1], w:+m[2], r:+m[3], o:m[4]}));
+  if(!parts.length) parts = [{inn:anSoloInnings(g, b, an.innings.filter(i=>!i.qld)), w:+b.w, r:+b.r, o:b.overs}];
+  const x = parts.find(p=>{ const i = an.innings.find(y=>y.inn===p.inn); return i && i.n===n; });
+  return x ? {o:String(x.o), w:x.w, r:x.r} : {o:'', w:0, r:0, none:true};
+}
+function dcAnBat(g, name, n){
+  const an = g.analyst; if(!an) return null;
+  const b = an.bat.find(x=>nmSame(x.name, name) && (x.n||1)===n); return b ? {r:+b.r, b:+b.b} : null;
+}
+function dataChecks(g){
+  const out = [], ns = isLtd(g) ? [1] : [1,2];
+  const fig = (o,w,r)=>`${has(o)?o:'0'} ov ${num(w)}/${num(r)}`;
+  ns.forEach(n=>{ const inn = isLtd(g) ? '' : `${n===1?'1st':'2nd'} innings`;
+    // bowlers
+    const rec = (g.bbb||{})['bowl'+n], bf = rec ? dcBallFigures(rec).bowl : null;
+    g.bowlers.forEach(p=>{ if(!(p.name||'').trim()) return; const k = 'i'+n;
+      const doc = {o:p[k+'o']||'', w:num(p[k+'w']), r:num(p[k+'r'])};
+      const srcs = [];
+      if(bf){ const key = Object.keys(bf).find(x=>nmSame(x, p.name)); const f = key ? bf[key] : {balls:0, r:0, w:0};
+        srcs.push({label:'Ball by ball', o: f.balls ? ballsToOvers(f.balls) : '', w:f.w, r:f.r}); }
+      const a = dcAnBowl(g, p.name, n); if(a) srcs.push({label:'Analyst', o:a.o, w:a.w, r:a.r});
+      const bad = srcs.filter(s=>num(s.w)!==doc.w || oversToBalls(s.o||'0')!==oversToBalls(doc.o||'0'));
+      if(bad.length && !(srcs.length===2 && bad.length===1 && bad[0].label==='Analyst' && !has(doc.o) && !has(bad[0].o)))
+        out.push({who:p.name, what:`${inn} bowling`, doc:fig(doc.o, doc.w, doc.r), srcs, fix:{list:'bowlers', id:p.id, n}});
+    });
+    // batters
+    const brec = (g.bbb||{})['bat'+n], bt = brec ? dcBallFigures(brec).bat : null;
+    g.batters.forEach(p=>{ if(!(p.name||'').trim()) return; const k = 'i'+n;
+      const doc = {r:num(p[k+'r']), b:num(p[k+'b'])}; const srcs = [];
+      if(bt){ const key = Object.keys(bt).find(x=>nmSame(x, p.name)); if(key) srcs.push({label:'Ball by ball', r:bt[key].r, b:bt[key].b}); }
+      const a = dcAnBat(g, p.name, n); if(a) srcs.push({label:'Analyst', r:a.r, b:a.b});
+      if(srcs.length && srcs.every(s=>s.r!==doc.r) && (has(p[k+'r']) || srcs.some(s=>s.r>0)))
+        out.push({who:p.name, what:`${inn} batting`, doc:`${doc.r} (${doc.b})`, srcs:srcs.map(s=>({...s, text:`${s.r} (${s.b})`})), fix:{list:'batters', id:p.id, n}});
+    });
+    // team: wickets the bowlers have against the innings score
+    const sc = String((g.scores||{})['o'+n]||'').match(/^(\d+)\//);
+    if(sc){ const ww = g.bowlers.reduce((m,p)=>m+num(p['i'+n+'w']), 0); if(ww > +sc[1]) out.push({who:'Bowlers', what:`${inn}`, doc:`${ww} wickets between them`, srcs:[{label:'Innings', text:`only ${sc[1]} wickets fell`}], fix:null}); }
+  });
+  return out;
+}
+function dataCheckInner(){
+  const g = G(); if(!g || !(g.bbb || g.analyst)) return '<div class="it-empty">–</div>';
+  const list = dataChecks(g);
+  if(!list.length) return `<div class="dc-ok">Every player's figures match the ${[g.bbb && Object.keys(g.bbb).length ? 'ball by ball' : '', g.analyst ? 'analyst report' : ''].filter(Boolean).join(' and ')}.</div>`;
+  return `<div class="dc-list">${list.map((x,i)=>`<div class="dc-row">
+      <div class="dc-who"><b>${esc(x.who)}</b> <span>${esc(x.what)}</span></div>
+      <div class="dc-vals"><span class="dc-doc">Here: ${esc(x.doc)}</span>${x.srcs.map(s=>`<span>${esc(s.label)}: ${esc(s.text || `${has(s.o)?s.o:'0'} ov ${num(s.w)}/${num(s.r)}`)}</span>`).join('')}</div>
+      <div class="dc-btns">${x.fix ? x.srcs.map((s,j)=>`<button class="tool-btn" onclick="dcFix(${i},${j})">Use ${esc(s.label.toLowerCase())}</button>`).join('') : ''}</div>
+    </div>`).join('')}</div>`;
+}
+function dcFix(i, j){
+  const g = G(), x = dataChecks(g)[i]; if(!x || !x.fix) return; const s = x.srcs[j], f = x.fix;
+  const p = g[f.list].find(q=>q.id===f.id); if(!p) return; const k = 'i'+f.n;
+  const own = g.anOwn = g.anOwn||{}, src = g.anSrc = g.anSrc||{}, path = `${f.list==='bowlers'?'bowl':'bat'}:${p.id}:${f.n}`;
+  if(f.list==='bowlers'){
+    if(!has(s.o) && !num(s.w)){ ['o','m','r','w','d','f','s'].forEach(q=>{ p[k+q] = ''; }); delete own[path]; delete src[path]; }
+    else { p[k+'o'] = String(s.o); p[k+'w'] = String(s.w); p[k+'r'] = String(s.r); own[path] = String(s.o); src[path] = s.label==='Analyst' ? 'an' : 'bbb'; }
+  } else { p[k+'r'] = String(s.r); p[k+'b'] = String(s.b); own[path] = String(s.r); src[path] = s.label==='Analyst' ? 'an' : 'bbb'; }
+  autoMilestones(g); touchGame(g); render(); toast(`${p.name}: ${s.label.toLowerCase()} figures used`);
 }
 function anApply(g){
   const an = g.analyst, s = S(), done = [];
