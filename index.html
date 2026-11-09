@@ -3379,8 +3379,9 @@ async function readAnalystPdf(pdf, OPS, onPage){
       const t = L.find(l=>/ v /.test(l.text) && !/·/.test(l.text) && l.y>760); if(t) A.title = t.cells.find(c=>/ v /.test(c.s)).s;
       const res = cells.find(s=>/ won by | drawn| tied/i.test(s)); if(res) A.result = res.replace(/\s*\(.*$/,'');
       cells.forEach(s=>{ const m = s.match(/Venue (.+)$/); if(m && !A.venue && !/^history/.test(m[1])) A.venue = m[1].split(' · ')[0]; const d = s.match(/Date (\d{4})-?(\d{2})-?(\d{2})/); if(d) A.date = `${d[1]}-${d[2]}-${d[3]}`; });
-      const sides = cells.filter(s=>/ · [\d.]+ ov$/.test(s));
-      A.innings = cells.filter(s=>/^\d+\/\d+$/.test(s)).slice(0, sides.length || 4).map((sc,i)=>({inn:i+1, score:sc, team:(sides[i]||'').replace(/ · .*$/,''), overs:(sides[i]||'').replace(/^.* · /,'').replace(/ ov$/,'')}));
+      const sides = cells.filter(s=>/^\S.* · [\d.]+(?: ov)?$/.test(s) && !/ v /.test(s));
+      // an innings is only kept when its team is known: a score put against the wrong side is worse than none
+      A.innings = cells.filter(s=>/^\d+\/\d+$/.test(s)).slice(0, sides.length).map((sc,i)=>({inn:i+1, score:sc, team:(sides[i]||'').replace(/ · .*$/,''), overs:(sides[i]||'').replace(/^.* · /,'').replace(/ ov$/,'')})).filter(i=>i.team);
       A.teams = [...new Set(A.innings.map(i=>i.team).filter(Boolean))];
     }
     const heads = [];
@@ -3715,6 +3716,7 @@ function anApply(g){
   const an = g.analyst, s = S(), done = [];
   const own = g.anOwn = g.anOwn || {}, src = g.anSrc = g.anSrc || {};
   bbbRefile(g, an);
+  ['q3','q4','o3','o4'].forEach(k=>{ if(g.scores && k in g.scores && (g.anSrc||{})['score:'+k]){ delete g.scores[k]; delete (g.anOwn||{})['score:'+k]; delete g.anSrc['score:'+k]; } });   // left by a misread report
   // a figure filled from a ball-by-ball paste before this was tracked: that innings was pasted, so it is replaceable too
   const pasted = path=>{ let m;
     if((m = path.match(/^bat:.*:(\d)$/))) return !!(g.bbb||{})['bat'+m[1]];
