@@ -3494,6 +3494,7 @@ function anText(g, t){
   const an = g.analyst; if(!an || !t) return t||'';
   let s = String(t).replace(/ -- /g,' – ');
   (an.names||[]).forEach(n=>{ const r = anRaw(n); if(r!==n) s = s.split(r).join(n); });
+  s = s.replace(/\b([Ii])nns (\d)\b/g, (m, c, d)=>{ const x = (an.innings||[]).find(y=>y.inn===+d); if(!x) return m; const w = `${x.n===1?'1st':'2nd'} innings`; return c==='I' ? w : w; });
   return s;
 }
 /* expand the compact tables back into named fields */
@@ -3678,6 +3679,8 @@ function anFillHidden(g){
 /* a bowler the report gives one set of figures for: which of the opposition's innings was it?
    A pasted innings that doesn't include him rules it out, and an innings can't take more wickets than fell in it. */
 function anSoloInnings(g, b, opp){
+  const sp = [...new Set([...String((b.notes||{}).Spells||'').matchAll(/inns (\d+)/g)].map(m=>+m[1]))];
+  if(sp.length===1 && opp.some(i=>i.inn===sp[0])) return sp[0];
   if(opp.length<2) return (opp[0]||{}).inn || b.solo || 2;
   const inPaste = n=>{ const rec = (g.bbb||{})['bowl'+n]; return rec ? rec.names.some(x=>nmSame(x, b.name) || (x && pkey(x).endsWith(pkey(b.name.split(' ').slice(-1)[0])) && x[0]===b.name[0])) : null; };
   const an = g.analyst;
@@ -3716,6 +3719,12 @@ function anApply(g){
   const an = g.analyst, s = S(), done = [];
   const own = g.anOwn = g.anOwn || {}, src = g.anSrc = g.anSrc || {};
   bbbRefile(g, an);
+  Object.keys(own).forEach(path=>{ const m = path.match(/^(bat|bowl):(.+):(\d)$/); if(!m || src[path]!=='an') return;
+    const bat = m[1]==='bat', p = (bat ? g.batters : g.bowlers).find(x=>x.id===m[2]), k = 'i'+m[3]; if(!p) return;
+    if(String(p[k+(bat?'r':'o')]??'')!==own[path]) return;   // changed by hand: left alone
+    const pasted = !!(g.bbb||{})[m[1]+m[3]];
+    (bat ? ['r','b','f','s'] : ['o','w','r','m']).concat(pasted ? [] : ['d']).forEach(f=>{ p[k+f] = ''; }); if(bat) p[k+'no'] = false;
+    delete own[path]; delete src[path]; });
   ['q3','q4','o3','o4'].forEach(k=>{ if(g.scores && k in g.scores && (g.anSrc||{})['score:'+k]){ delete g.scores[k]; delete (g.anOwn||{})['score:'+k]; delete g.anSrc['score:'+k]; } });   // left by a misread report
   // a figure filled from a ball-by-ball paste before this was tracked: that innings was pasted, so it is replaceable too
   const pasted = path=>{ let m;
