@@ -1688,7 +1688,7 @@ function md_sessionPanel(g){
   </div>`;
 }
 function openMatch(id, tab){ DT_SEL = {}; view = resetView('match'); view.gameId=id;
-  { const g0 = (S()&&S().games||[]).find(x=>x.id===id); if(g0 && (g0.bbb || g0.analyst)){ try{ const a = g0.analyst ? anDedupeSolo(g0) : false; if(autoDismissals(g0) || a) touchGame(g0); }catch(e){} } } view.tab=tab||'summary'; openPlayers.clear(); render(); window.scrollTo(0,0); }
+  { const g0 = (S()&&S().games||[]).find(x=>x.id===id); if(g0 && (g0.bbb || g0.analyst)){ try{ if(g0.analyst) anRepairNotes(g0.analyst); const a = g0.analyst ? anDedupeSolo(g0) : false; if(autoDismissals(g0) || a) touchGame(g0); }catch(e){} } } view.tab=tab||'summary'; openPlayers.clear(); render(); window.scrollTo(0,0); }
 function setTab(t){ view.tab = t; view.addingMetric=false; render(); }
 function setSTab(t){ view.stab = t; view.player = null; render(); }
 function openPlayer(disc, key){ view.stab = disc; view.player = key; render(); window.scrollTo(0,0); }
@@ -3726,6 +3726,23 @@ function bbbRefile(g, an){
 }
 /* A bowler the report has in one innings only, whose figures also sit word for word in the other innings
    (left there by an earlier misread report): the copy goes. The other innings stays if a pasted ball by ball has him in it. */
+/* Some PDFs (a printed copy of the web report) lose the colon, hyphen and brackets, so
+   "By innings: inns 2: 2-30 (8.5) · inns 4: 3-42 (10)" arrives as "inns 2 230 8.5 · inns 4 342 10".
+   Put them back, splitting wickets from runs so they add up to the bowler's match figures. */
+function anRepairNotes(an){
+  if(!an || !an.bowl) return;
+  an.bowl.forEach(b=>{ const t = (b.notes||{})['By innings']; if(!t || /inns \d+: \d+-\d+ \(/.test(t)) return;
+    const toks = [...t.matchAll(/inns (\d+):?\s*(\d+)(?:-(\d+))?\s*\(?([\d.]+)\)?/g)].map(m=>({inn:+m[1], d:m[2], r2:m[3], o:m[4]}));
+    if(!toks.length) return;
+    const opts = toks.map(x=>{ if(x.r2!==undefined) return [[+x.d, +x.r2]];
+      const o = []; if(x.d.length>1) o.push([+x.d[0], +x.d.slice(1)]); if(x.d.length>2 && x.d.startsWith('10')) o.push([10, +x.d.slice(2)]); return o.length ? o : [[0, +x.d]]; });
+    let best = null;
+    const walk = (i, acc)=>{ if(i===opts.length){ const w = acc.reduce((m,x)=>m+x[0],0), r = acc.reduce((m,x)=>m+x[1],0); const ok = w===+b.w && r===+b.r; if(!best || (ok && !best.ok)) best = {acc:acc.slice(), ok}; return; }
+      opts[i].forEach(c=>{ acc.push(c); walk(i+1, acc); acc.pop(); }); };
+    walk(0, []);
+    b.notes['By innings'] = toks.map((x,i)=>`inns ${x.inn}: ${best.acc[i][0]}-${best.acc[i][1]} (${x.o})`).join(' · ');
+  });
+}
 function anDedupeSolo(g){
   const an = g.analyst; if(!an || !an.bowl) return false;
   let changed = false;
@@ -3820,6 +3837,7 @@ function dcFix(i, j){
 function anApply(g){
   const an = g.analyst, s = S(), done = [];
   const own = g.anOwn = g.anOwn || {}, src = g.anSrc = g.anSrc || {};
+  anRepairNotes(an);
   bbbRefile(g, an);
   Object.keys(own).forEach(path=>{ const m = path.match(/^(bat|bowl):(.+):(\d)$/); if(!m || src[path]!=='an') return;
     const bat = m[1]==='bat', p = (bat ? g.batters : g.bowlers).find(x=>x.id===m[2]), k = 'i'+m[3]; if(!p) return;
@@ -3888,6 +3906,11 @@ function anApply(g){
   autoKpis(g);
   autoDismissals(g);
   anDedupeSolo(g);
+  // opposition players that a paste filed as the wrong side made into ours: once they have nothing left, they go
+  { const ours = [...an.bat, ...an.bowl].map(x=>x.name), theirs = [...(an.oppBowl||[]).map(x=>x.name), ...(an.names||[]).filter(n=>!ours.some(q=>nmSame(q,n)))];
+    const stray = p=>(p.name||'').trim() && !['1','2'].some(n=>['r','b','o','w'].some(f=>has(p['i'+n+f]))) && !reviewBody(p.review) && !(p.files||[]).length
+      && !ours.some(x=>nmSame(x, p.name)) && theirs.some(x=>nmSame(x, p.name));
+    g.batters = g.batters.filter(p=>!stray(p)); g.bowlers = g.bowlers.filter(p=>!stray(p)); }
   const hid = anFillHidden(g); if(hid) done.push(plural(hid,'hidden name'));
   done.push('notes and charts for every player');
   return done;
