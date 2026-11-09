@@ -1884,7 +1884,6 @@ const LIVE = {
   dayTotal: d=>dayTotalInner(d),
   sessTally: ()=>tallyInner(),
   innScores: ()=>innScoresInner(),
-  dataCheck: ()=>dataCheckInner(),
   kpiMaidens: ()=>{ const a=document.activeElement; return (a && a.closest && a.closest('[data-live="kpiMaidens"]')) ? null : kpiCellsInner('maidens'); },
   kpiTotal: id=>kpiTotalInner(id),
   kpiPct: a=>{ const [id,inn]=a.split(':'); const m=S().bowlMetrics.find(x=>x.id===id); return m ? kpiPct(G(), m, +inn) : ''; },
@@ -2068,7 +2067,6 @@ function tabSummary(g){
     <div class="panel-head"><div class="panel-title">${LE('gs.scores')}</div></div>
     <div data-live="innScores">${innScoresInner()}</div>
   </div>
-  <div class="panel"><div class="panel-head"><div class="panel-title">Data check</div></div><div data-live="dataCheck">${dataCheckInner()}</div></div>
   ${isLtd(g)?standardsPanel(g):''}
 
   <div class="panel">
