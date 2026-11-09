@@ -983,6 +983,7 @@ function md_innScore(g, k){
   return (g.scores && g.scores[k]) || '';
 }
 function md_innOvers(g, k){
+  const sc = (g.scorecards||{})[k]; if(sc && sc.overs) return sc.overs;   // the scorecard's overs
   const rec = (g.bbb||{})[{q1:'bat1', o1:'bowl1', q2:'bat2', o2:'bowl2'}[k]];   // the whole innings, when it was pasted
   if(rec){ const n = bbbBalls(rec).filter(x=>!x.wd && !x.nb).length; if(n) return ballsToOvers(n); }
   const x = sessTotals(g)[k]; return x && x.n && x.b ? ballsToOvers(x.b) : ''; }
@@ -2055,6 +2056,7 @@ function tabSummary(g){
     <div class="url-row">
       <input type="url" placeholder="https://" value="${esc(g.scorecardUrl)}" oninput="setScorecard(this.value)">
       <button class="ghost-btn" onclick="openScorecard()">Open</button>
+      <button class="primary-btn" onclick="openScorecardFill()">Fill from scorecard</button>
       <button class="primary-btn" onclick="openFill()">Fill from ball by ball</button>
       <button class="primary-btn" onclick="openAnalyst()">${g.analyst?'Replace analyst report':'Add analyst report'}</button>
     </div>
@@ -2256,7 +2258,7 @@ function anPlayerFielding(g, name){
 function anFillFielding(g){
   const an = g.analyst; if(!an) return;
   const own = g.anOwn = g.anOwn || {};
-  const put = (f, k, v, path)=>{ const cur = f[k]; if(cur!=='' && cur!==undefined && cur!==null && own[path]!==String(cur)) return; f[k] = String(v); own[path] = String(v); };
+  const put = (f, k, v, path)=>{ if((g.anSrc||{})[path]==='sc') return; const cur = f[k]; if(cur!=='' && cur!==undefined && cur!==null && own[path]!==String(cur)) return; f[k] = String(v); own[path] = String(v); };
   [...g.batters, ...g.bowlers].forEach(p=>{ const name = (p.name||'').trim(), key = pkey(name); if(!key) return;
     const f = g.pfield[key] = Object.assign({c:'', d:'', ro:'', notes:''}, g.pfield[key]||{});
     const c = an.field.catches.find(([n])=>nmSame(n, name)); if(c) put(f, 'c', c[1], `pf:${key}:c`);
@@ -2293,7 +2295,9 @@ function disFromAnalyst(t){
 }
 function disText(g, name, n){
   let mode = '';
-  const rec = (g.bbb||{})['bat'+n];
+  const scb = (((g.scorecards||{})['q'+n]||{}).bat||[]).find(b=>!b.dnb && nmSame(b.name, name));   // the scorecard says how
+  if(scb) mode = scHowText(scb.how);
+  const rec = mode ? null : (g.bbb||{})['bat'+n];
   if(rec){ const bs = bbbBalls(rec), ob = bs.find(x=>x.out && nmSame(x.outName||x.batter, name));
     if(ob) mode = disFromBall(ob); else if(bs.some(x=>nmSame(x.batter, name))) mode = 'Not out'; }
   const ar = anRecs(g, 'bat', name).find(r=>(r.n||1)===n), a = disFromAnalyst(ar && ar.rec.notes && ar.rec.notes.Dismissal);
@@ -2805,6 +2809,146 @@ function bbbHeaderMeta(text){
 /* ---- Fill a match from the PlayCricket ball-by-ball page ---- */
 let bbb = null;
 const isQldTeam = t=>/queensland|\bqld\b|bulls/i.test(t||'');
+/* ============================= SCORECARD (the official record) =============================
+   One innings of the PlayCricket Scorecard tab, copied as text (Ctrl+A, Ctrl+C). It fills the innings exactly:
+   batters, bowlers, extras, total, fall of wickets and fielding. Its figures come first: the analyst report and
+   the ball by ball add their detail but don't change what the scorecard says. */
+let scf = {text:'', r:null, pick:null};
+function scIsQld(code){ return /^(QU|QLD|QB)/i.test(code||''); }
+function scNum(s){ const v = String(s||'').replace('*','').trim(); return v==='' || v==='-' ? 0 : +v; }
+function scParse(text){
+  const ls = (text||'').split(/\r?\n/).map(l=>l.replace(/\u00a0/g,' ').trim());
+  const r = {tabs:[], bat:[], bowl:[], field:[], fow:[], extras:null, total:null, overs:'', teams:[], result:''};
+  ls.forEach((l,i)=>{ const m = l.match(/^(1st|2nd) ([A-Z]{2,4})$/); if(!m) return;
+    const v = (ls[i+1]||'').match(/^(?:(\d+)d-)?(\d+)$/); if(v) r.tabs.push({inn: m[1]==='1st'?1:2, code:m[2], runs:+v[2], decW: v[1]!==undefined ? +v[1] : null}); });
+  const res = ls.find(l=>/ won by | drawn$|^drawn|match drawn| tied|abandoned|no result/i.test(l)); if(res) r.result = res;
+  const si = ls.findIndex(l=>/^Scorecard$/.test(l)), ci = ls.findIndex(l=>/^(COMPLETED|LIVE|IN PROGRESS|STUMPS|RESULT)$/i.test(l));
+  r.teams = ls.slice(0, si>0 ? si : ls.length).filter(l=>/^[A-Z][A-Za-z .'&-]{3,}$/.test(l) && !/^[A-Z ]+$/.test(l) && !/ won by |^(Skip|Play|Community|Competitions|Stats|PlayHQ|Support|Search|Round|Toyota|Greg|Scorecard|Ball by ball|Highlights|Graphs|Summary)\b/i.test(l) && !/Logo|window/i.test(l));
+  // batting
+  const bi = ls.findIndex(l=>/^Batting\b/.test(l)), ei = ls.findIndex((l,i)=>i>bi && /^Extras$/i.test(l));
+  if(bi>=0 && ei>bi){
+    let i = bi+1;
+    while(i < ei){
+      const name = ls[i], how = ls[i+1]||''; if(!name){ i++; continue; }
+      if(/^did not bat$/i.test(how)){ r.bat.push({name, how:'', dnb:true}); i += 2; continue; }
+      const nums = (ls[i+2]||'').split(/\s+/).filter(Boolean);
+      if(!nums.length || !nums.every(x=>/^[\d.*-]+$/.test(x))){ i++; continue; }
+      let R, B, F, S;
+      if(nums.length>=5){ [R, B, F, S] = nums; } else if(nums.length===4){ R = '0'; [B, F, S] = nums; } else { i += 3; continue; }   // a duck shows as a picture, so its runs are missing
+      r.bat.push({name, how, r:scNum(R), b:scNum(B), f:scNum(F), s:scNum(S), no: /\*/.test(R) || /^not out|^retired not out/i.test(how)});
+      i += 3;
+    }
+    const ex = (ls[ei+1]||'').match(/\((.*)\)/), et = ls[ei+2]||'';
+    const eg = k=>{ const m = (ex ? ex[1] : '').match(new RegExp('(\\d+)\\s*'+k+'\\b','i')); return m ? +m[1] : 0; };
+    r.extras = {total: /^\d+$/.test(et) ? +et : 0, wd:eg('Wd'), nb:eg('NB'), lb:eg('LB'), b:eg('B'), p:eg('P')};
+    const ti = ls.findIndex((l,i)=>i>ei && /^Total$/i.test(l));
+    if(ti>0){ const om = (ls[ti+1]||'').match(/([\d.]+)\s*Overs?/i); r.overs = om ? om[1] : ''; const tv = (ls[ti+2]||'').match(/^(\d+)/); if(tv) r.total = +tv[1]; }
+  }
+  // bowling and fielding: one row a line, "Name  O  M  R  W  Econ  Wd  NB" and "Name  C  RO  ST"
+  const wi = ls.findIndex(l=>/^Bowling\b/.test(l)), fi = ls.findIndex(l=>/^Fielding\b/.test(l)), oi = ls.findIndex(l=>/^Fall of Wickets/i.test(l));
+  if(wi>=0) ls.slice(wi+1, fi>wi ? fi : (oi>wi ? oi : ls.length)).forEach(l=>{
+    const m = l.match(/^(.+?)\s+([\d.]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+([\d.]+|-|–)\s+(\d+)\s+(\d+)$/);
+    if(m) r.bowl.push({name:m[1].trim(), o:m[2], m:+m[3], r:+m[4], w:+m[5], wd:+m[7], nb:+m[8]}); });
+  if(fi>=0) ls.slice(fi+1, oi>fi ? oi : ls.length).forEach(l=>{
+    const m = l.match(/^(.+?)\s+(\d+)\s+(\d+)\s+(\d+)$/); if(m) r.field.push({name:m[1].trim(), c:+m[2], ro:+m[3], st:+m[4]}); });
+  if(oi>=0) for(let i = oi+1; i < ls.length; i++){ const m = ls[i].match(/^(\d+)-(\d+)$/); if(!m) continue;
+    const t = (ls[i+1]||'').match(/^(.+?)\s*\((.*)\)\s*$/); r.fow.push({w:+m[1], score:+m[2], name: t ? t[1].trim() : (ls[i+1]||''), how: t ? t[2] : ''}); }
+  r.wkts = r.fow.length ? Math.max(...r.fow.map(x=>x.w)) : r.bat.filter(b=>!b.dnb && !b.no).length;
+  // which innings this is: the tab whose total matches
+  const cands = r.tabs.filter(t=>t.runs===r.total);
+  r.tab = cands.find(t=>t.decW!==null && t.decW===r.wkts) || cands[0] || null;
+  return r;
+}
+/* "c: L Hardy b: a Esterhuysen" → "Caught Hardy b Esterhuysen" */
+function scHowText(how){
+  const h = (how||'').trim(), sur = n=>{ const w = (n||'').trim().split(/\s+/); const s = w[w.length-1]||''; return s ? s[0].toUpperCase()+s.slice(1) : ''; };
+  let m;
+  if(!h) return '';
+  if(/^not out/i.test(h)) return 'Not out';
+  if(/^retired/i.test(h)) return h[0].toUpperCase()+h.slice(1);
+  if((m = h.match(/^c&b:\s*(.+)$/i))) return `Caught & bowled ${sur(m[1])}`;
+  if((m = h.match(/^c:\s*(.+?)\s+b:\s*(.+)$/i))) return `Caught ${sur(m[1])} b ${sur(m[2])}`;
+  if((m = h.match(/^st:\s*(.+?)\s+b:\s*(.+)$/i))) return `Stumped ${sur(m[1])} b ${sur(m[2])}`;
+  if((m = h.match(/^lbw:\s*(.+)$/i))) return `LBW ${sur(m[1])}`;
+  if((m = h.match(/^b:\s*(.+)$/i))) return `Bowled ${sur(m[1])}`;
+  if((m = h.match(/^run out\s*\((.+?)\)/i))) return `Run out (${m[1].split('/').map(sur).join('/')})`;
+  if(/^run out/i.test(h)) return 'Run out';
+  if((m = h.match(/^hit wicket:?\s*(?:b:\s*)?(.+)?$/i))) return `Hit wicket${m[1] ? ' b '+sur(m[1]) : ''}`;
+  return h;
+}
+function openScorecardFill(){
+  scf = {text:'', r:null, pick:null};
+  document.getElementById('modal-root').innerHTML = `
+  <div class="modal-back" onclick="if(event.target===this)closeModal()">
+    <div class="modal bbb-modal" role="dialog" aria-modal="true" aria-label="Fill from scorecard">
+      <div class="modal-head"><div class="modal-title">Fill from scorecard</div><button class="icon-btn" onclick="closeModal()" aria-label="Close">×</button></div>
+      <div class="modal-body">
+        <textarea id="sc-text" class="bbb-text" aria-label="Scorecard page" oninput="scRead(this.value)"></textarea>
+        <div id="sc-preview"></div>
+      </div>
+    </div>
+  </div>`;
+  setTimeout(()=>{ const t = document.getElementById('sc-text'); if(t) t.focus(); }, 20);
+}
+function scRead(text){
+  scf.text = text; const r = scParse(text); scf.r = r; scf.pick = r.tab;
+  const el = document.getElementById('sc-preview'); if(!el) return;
+  if(!r.bat.length && !r.bowl.length){ el.innerHTML = text.trim() ? '<div class="bbb-warn">No scorecard found. Open one innings on the Scorecard tab, then Ctrl+A and Ctrl+C.</div>' : ''; return; }
+  scPreview();
+}
+function scPickTab(i){ scf.pick = scf.r.tabs[i]; scPreview(); }
+function scPreview(){
+  const r = scf.r, t = scf.pick, g = G(), el = document.getElementById('sc-preview');
+  const label = x=>`${x.inn===1?'1st':'2nd'} ${scIsQld(x.code) ? 'QLD' : esc(oppShort(g)||x.code)} ${x.decW!==null?x.decW+'d-':''}${x.runs}`;
+  const qb = t && scIsQld(t.code);
+  const sum = (a,f)=>a.reduce((m,x)=>m+(+x[f]||0),0);
+  const checks = [];
+  if(r.total!=null){ const add = sum(r.bat.filter(b=>!b.dnb),'r') + (r.extras ? r.extras.total : 0); if(add!==r.total) checks.push(`Batters and extras add to ${add}, the total says ${r.total}`); }
+  if(r.bowl.length){ const bw = sum(r.bowl,'w'), ro = r.bat.filter(b=>/^run out|^retired|obstruct|handled|timed/i.test(b.how||'')).length; if(bw + ro !== r.wkts) checks.push(`Bowlers have ${bw} wickets and there were ${ro} run outs, but ${r.wkts} wickets fell`); }
+  el.innerHTML = `
+    <div class="bbb-opts"><div class="seg">${r.tabs.map((x,i)=>`<button class="${t===x?'on':''}" onclick="scPickTab(${i})">${label(x)}</button>`).join('')}</div></div>
+    ${t ? `<div class="bbb-sum"><b>${qb?'QLD batting':'QLD bowling'}, ${t.inn===1?'1st':'2nd'} innings</b> ${r.wkts}/${r.total}${t.decW!==null?' dec':''} (${esc(r.overs)} ov) · ${r.bat.filter(b=>!b.dnb).length} batters · ${r.bowl.length} bowlers</div>` : '<div class="bbb-warn">Pick the innings this scorecard is for.</div>'}
+    ${checks.map(c=>`<div class="bbb-warn">${esc(c)}</div>`).join('')}
+    <div class="table-wrap"><table class="stat-table bbb-table"><thead><tr><th>${qb?'Batter':'Bowler'}</th>${qb?'<th>R</th><th>B</th><th>4s</th><th>6s</th><th></th>':'<th>O</th><th>M</th><th>R</th><th>W</th>'}</tr></thead>
+      <tbody>${qb ? r.bat.filter(b=>!b.dnb).map(b=>`<tr><td>${esc(b.name)}</td><td>${b.r}${b.no?'*':''}</td><td>${b.b}</td><td>${b.f}</td><td>${b.s}</td><td>${esc(scHowText(b.how))}</td></tr>`).join('')
+        : r.bowl.map(b=>`<tr><td>${esc(b.name)}</td><td>${esc(b.o)}</td><td>${b.m}</td><td>${b.r}</td><td>${b.w}</td></tr>`).join('')}</tbody></table></div>
+    <div class="btn-row" style="margin-top:14px;"><button class="primary-btn" ${t?'':'disabled'} onclick="scApply()">Fill match</button></div>`;
+}
+function scApply(){
+  const g = G(), r = scf.r, t = scf.pick; if(!r || !t) return;
+  const n = isLtd(g) ? 1 : t.inn, qb = scIsQld(t.code), k = (qb?'q':'o')+n;
+  const own = g.anOwn = g.anOwn||{}, src = g.anSrc = g.anSrc||{};
+  g.scorecards = g.scorecards||{};
+  g.scorecards[k] = {runs:r.total, wkts:r.wkts, dec:t.decW!==null, overs:r.overs, extras:r.extras, bat:r.bat, bowl:r.bowl, field:r.field, fow:r.fow};
+  g.scores = g.scores||{}; g.scores[k] = `${r.wkts}/${r.total}`; own['score:'+k] = g.scores[k]; src['score:'+k] = 'sc';
+  g.dec = g.dec||{}; g.dec[k] = t.decW!==null;
+  if(!g.firstBat && r.tabs.length) g.firstBat = scIsQld(r.tabs[0].code) ? 'bat' : 'bowl';
+  const opp = r.teams.find(x=>!/^Queensland/i.test(x)); if(opp && (!(g.opponent||'').trim() || own['g:opponent']===g.opponent || src['g:opponent']==='sc')){ g.opponent = opp; own['g:opponent'] = opp; src['g:opponent'] = 'sc'; }
+  if(r.result && (!g.result || own['g:result']===g.result || src['g:result']==='sc')){ const x = r.result, v = / won by /i.test(x) ? (/^Queensland/i.test(x) ? 'Win' : 'Loss') : /drawn|draw/i.test(x) ? 'Draw' : /tied/i.test(x) ? 'Tie' : /abandon|no result/i.test(x) ? 'Abandoned' : ''; if(v){ g.result = v; own['g:result'] = v; src['g:result'] = 'sc'; } }
+  const find = (list, name)=>{ const nm = bbbMatchName(name, name); let p = g[list].find(q=>nmSame(q.name, nm) || nmSame(q.name, name));
+    if(!p){ p = list==='batters' ? newBatter() : newBowler(); p.name = nm; if(list==='batters') p.review = batTemplate(g); g[list].push(p); } return p; };
+  let filled = 0;
+  if(qb){
+    r.bat.filter(b=>!b.dnb).forEach(b=>{ const p = find('batters', b.name), x = 'i'+n;
+      p[x+'r'] = String(b.r); p[x+'b'] = String(b.b); p[x+'f'] = String(b.f); p[x+'s'] = String(b.s); p[x+'no'] = !!b.no;
+      const path = `bat:${p.id}:${n}`; own[path] = String(b.r); src[path] = 'sc'; filled++; });
+  } else {
+    r.bowl.forEach(b=>{ const p = find('bowlers', b.name), x = 'i'+n;
+      p[x+'o'] = String(b.o); p[x+'m'] = String(b.m); p[x+'r'] = String(b.r); p[x+'w'] = String(b.w);
+      const path = `bowl:${p.id}:${n}`; own[path] = String(b.o); src[path] = 'sc'; filled++; });
+    // QLD's fielding: catches and run outs over the opposition's innings on the scorecards so far
+    const tot = {};
+    ['o1','o2'].forEach(j=>((g.scorecards[j]||{}).field||[]).forEach(f=>{ const key = pkey(bbbMatchName(f.name, f.name)); const e = tot[key] = tot[key] || {c:0, ro:0, name:f.name}; e.c += f.c + f.st; e.ro += f.ro; }));
+    g.pfield = g.pfield||{};
+    Object.entries(tot).forEach(([key, e])=>{ const pl = [...g.batters, ...g.bowlers].find(p=>nmSame(p.name, e.name)); const kk = pl ? pkey(pl.name) : key;
+      const f = g.pfield[kk] = Object.assign({c:'', d:'', ro:'', notes:''}, g.pfield[kk]||{});
+      [['c', e.c], ['ro', e.ro]].forEach(([fk, v])=>{ const path = `pf:${kk}:${fk}`; if(f[fk]!=='' && f[fk]!==undefined && own[path]!==String(f[fk]) && src[path]!=='sc') return; f[fk] = v ? String(v) : (f[fk]||''); own[path] = String(f[fk]); src[path] = 'sc'; }); });
+  }
+  autoMilestones(g); autoKpis(g); autoDismissals(g);
+  touchGame(g); closeModal(); render();
+  toast(`Filled ${qb?'QLD batting':'QLD bowling'}, ${n===1?'1st':'2nd'} innings from the scorecard`);
+}
+
 function openFill(){
   bbb = {text:'', r:null};
   document.getElementById('modal-root').innerHTML = `
@@ -2852,7 +2996,7 @@ function bbbQldBatting(g, r){
 function bbbGuessInnings(g, r, side){
   const sc = g.scores||{}, src = g.anSrc||{};
   let best = null;
-  ['q1','o1','q2','o2'].forEach(k=>{ if(src['score:'+k]!=='an') return; const m = String(sc[k]||'').match(/^(\d+)\/(\d+)/); if(!m) return;
+  ['q1','o1','q2','o2'].forEach(k=>{ if(src['score:'+k]!=='an' && src['score:'+k]!=='sc') return; const m = String(sc[k]||'').match(/^(\d+)\/(\d+)/); if(!m) return;
     const w = +m[1], runs = +m[2], d = Math.abs(runs - r.total) + (w===r.wkts ? 0 : 20);
     if(d <= 8 && (!best || d < best.d)) best = {d, side: k[0]==='q' ? 'bat' : 'bowl', inn: +k[1]}; });
   if(best) return best;
@@ -2950,7 +3094,7 @@ function bbbApply(){
     const p = x.p, set = (k,v)=>{ pl['i'+n+k] = String(v); };
     const own = g.anOwn = g.anOwn || {}, osrc = g.anSrc = g.anSrc || {};
     const path = `${bat?'bat':'bowl'}:${pl.id}:${n}`, key = 'i'+n+(bat?'r':'o');
-    const anHolds = osrc[path]==='an' && own[path]!==undefined && String(pl[key])===own[path];   // the analyst's figures stand
+    const anHolds = (osrc[path]==='an' || osrc[path]==='sc') && own[path]!==undefined && String(pl[key])===own[path];   // the analyst's figures stand
     // dots from the paste are exact, but only replace the analyst's when the paste covers that player's whole innings
     if(bat){ const c = p.check||{}; if(!anHolds){ set('r', c.r??p.r); set('b', c.b??p.b); set('f', c.f??p.f); set('s', c.s??p.s); pl['i'+n+'no'] = !p.out; }
       if(!anHolds || String(c.b??p.b)===String(pl['i'+n+'b'])) set('d', p.d); }
@@ -2977,7 +3121,7 @@ function bbbApply(){
   const k = (bat?'q':'o') + n, runs = bbb.pageTotal!=null ? bbb.pageTotal : r.total;
   const dec = bbbHeaderInnings(bbb.text).some(h=>h.code===(r.team||'').slice(0,3).toUpperCase() && h.inn===n && h.dec);
   { const own = g.anOwn = g.anOwn || {}, osrc = g.anSrc = g.anSrc || {}, sp = 'score:'+k;
-    const anHolds = osrc[sp]==='an' && own[sp]!==undefined && String(g.scores[k])===own[sp];
+    const anHolds = (osrc[sp]==='an' || osrc[sp]==='sc') && own[sp]!==undefined && String(g.scores[k])===own[sp];
     if(!anHolds){ g.scores[k] = `${r.wkts}/${runs}`; own[sp] = g.scores[k]; osrc[sp] = 'bbb'; } }
   if(dec){ g.dec = g.dec||{}; g.dec[k] = true; }
   // partnerships (QLD batting) and milestones, replacing any filled before for this innings
@@ -3752,7 +3896,7 @@ function anDedupeSolo(g){
     const keep = (an.innings.find(i=>i.inn===anSoloInnings(g, b, opp))||{}).n || 1, drop = keep===1 ? 2 : 1;
     const same = ['o','r','w'].every(f=>has(p['i'+drop+f]) && String(p['i'+drop+f])===String(p['i'+keep+f]));
     const rec = (g.bbb||{})['bowl'+drop], inPaste = rec && rec.names.some(x=>nmSame(x, p.name) || nmSame(x, b.name));
-    if(!same || inPaste) return;
+    if(!same || inPaste || (g.anSrc||{})[`bowl:${p.id}:${drop}`]==='sc') return;
     ['o','m','r','w','d','f','s'].forEach(f=>{ p['i'+drop+f] = ''; });
     const path = `bowl:${p.id}:${drop}`; if(g.anOwn) delete g.anOwn[path]; if(g.anSrc) delete g.anSrc[path];
     changed = true; });
@@ -3791,23 +3935,30 @@ function dataChecks(g){
     const rec = (g.bbb||{})['bowl'+n], bf = rec ? dcBallFigures(rec).bowl : null;
     g.bowlers.forEach(p=>{ if(!(p.name||'').trim()) return; const k = 'i'+n;
       const doc = {o:p[k+'o']||'', w:num(p[k+'w']), r:num(p[k+'r'])};
-      const srcs = [];
+      const srcs = [], scw = (g.scorecards||{})['o'+n];
+      if(scw){ const f = (scw.bowl||[]).find(x=>nmSame(x.name, p.name)) || {o:'', w:0, r:0}; srcs.push({label:'Scorecard', o:String(f.o), w:f.w, r:f.r}); }
       if(bf){ const key = Object.keys(bf).find(x=>nmSame(x, p.name)); const f = key ? bf[key] : {balls:0, r:0, w:0};
         srcs.push({label:'Ball by ball', o: f.balls ? ballsToOvers(f.balls) : '', w:f.w, r:f.r}); }
       const a = dcAnBowl(g, p.name, n); if(a) srcs.push({label:'Analyst', o:a.o, w:a.w, r:a.r});
       const bad = srcs.filter(s=>num(s.w)!==doc.w || oversToBalls(s.o||'0')!==oversToBalls(doc.o||'0'));
-      if(bad.length && !(srcs.length===2 && bad.length===1 && bad[0].label==='Analyst' && !has(doc.o) && !has(bad[0].o)))
+      if(scw){ if(bad.some(s=>s.label==='Scorecard')) out.push({who:p.name, what:`${inn} bowling`, doc:fig(doc.o, doc.w, doc.r), srcs, fix:{list:'bowlers', id:p.id, n}}); }
+      else if(bad.length && !(srcs.length===2 && bad.length===1 && bad[0].label==='Analyst' && !has(doc.o) && !has(bad[0].o)))
         out.push({who:p.name, what:`${inn} bowling`, doc:fig(doc.o, doc.w, doc.r), srcs, fix:{list:'bowlers', id:p.id, n}});
     });
     // batters
     const brec = (g.bbb||{})['bat'+n], bt = brec ? dcBallFigures(brec).bat : null;
     g.batters.forEach(p=>{ if(!(p.name||'').trim()) return; const k = 'i'+n;
-      const doc = {r:num(p[k+'r']), b:num(p[k+'b'])}; const srcs = [];
+      const doc = {r:num(p[k+'r']), b:num(p[k+'b'])}; const srcs = [], scb = (g.scorecards||{})['q'+n];
+      if(scb){ const f = (scb.bat||[]).find(x=>!x.dnb && nmSame(x.name, p.name)); srcs.push(f ? {label:'Scorecard', r:f.r, b:f.b} : {label:'Scorecard', r:0, b:0}); }
       if(bt){ const key = Object.keys(bt).find(x=>nmSame(x, p.name)); if(key) srcs.push({label:'Ball by ball', r:bt[key].r, b:bt[key].b}); }
       const a = dcAnBat(g, p.name, n); if(a) srcs.push({label:'Analyst', r:a.r, b:a.b});
-      if(srcs.length && srcs.every(s=>s.r!==doc.r) && (has(p[k+'r']) || srcs.some(s=>s.r>0)))
+      const scS = srcs.find(s=>s.label==='Scorecard');
+      if(scS ? ((scS.r!==doc.r || scS.b!==doc.b) && (has(p[k+'r']) || scS.r>0 || scS.b>0)) : (srcs.length && srcs.every(s=>s.r!==doc.r) && (has(p[k+'r']) || srcs.some(s=>s.r>0))))
         out.push({who:p.name, what:`${inn} batting`, doc:`${doc.r} (${doc.b})`, srcs:srcs.map(s=>({...s, text:`${s.r} (${s.b})`})), fix:{list:'batters', id:p.id, n}});
     });
+    [['q'+n, 'batters', 'batting'], ['o'+n, 'bowlers', 'bowling']].forEach(([sk, list, w])=>{ const sc = (g.scorecards||{})[sk]; if(!sc) return;
+      (list==='batters' ? sc.bat.filter(b=>!b.dnb) : sc.bowl).forEach(b=>{ if(g[list].some(p=>nmSame(p.name, b.name))) return;
+        out.push({who:b.name, what:`${inn} ${w}`, doc:'not in this match', srcs:[{label:'Scorecard', text: list==='batters' ? `${b.r}${b.no?'*':''} (${b.b})` : `${b.o} ov ${b.w}/${b.r}`}], fix:null}); }); });
     // team: wickets the bowlers have against the innings score
     const sc = String((g.scores||{})['o'+n]||'').match(/^(\d+)\//);
     if(sc){ const ww = g.bowlers.reduce((m,p)=>m+num(p['i'+n+'w']), 0); if(ww > +sc[1]) out.push({who:'Bowlers', what:`${inn}`, doc:`${ww} wickets between them`, srcs:[{label:'Innings', text:`only ${sc[1]} wickets fell`}], fix:null}); }
@@ -3817,6 +3968,8 @@ function dataChecks(g){
 function dataCheckInner(){
   const g = G(); if(!g || !(g.bbb || g.analyst)) return '<div class="it-empty">–</div>';
   const list = dataChecks(g);
+  const scs = Object.keys(g.scorecards||{});
+  if(!list.length && scs.length) return `<div class="dc-ok">Every player's figures match the scorecard${scs.length<(isLtd(g)?2:4) ? ` for the ${scs.length===1?'innings':'innings'} filled from it` : ''}.</div>`;
   if(!list.length) return `<div class="dc-ok">Every player's figures match the ${[g.bbb && Object.keys(g.bbb).length ? 'ball by ball' : '', g.analyst ? 'analyst report' : ''].filter(Boolean).join(' and ')}.</div>`;
   return `<div class="dc-list">${list.map((x,i)=>`<div class="dc-row">
       <div class="dc-who"><b>${esc(x.who)}</b> <span>${esc(x.what)}</span></div>
@@ -3830,8 +3983,8 @@ function dcFix(i, j){
   const own = g.anOwn = g.anOwn||{}, src = g.anSrc = g.anSrc||{}, path = `${f.list==='bowlers'?'bowl':'bat'}:${p.id}:${f.n}`;
   if(f.list==='bowlers'){
     if(!has(s.o) && !num(s.w)){ ['o','m','r','w','d','f','s'].forEach(q=>{ p[k+q] = ''; }); delete own[path]; delete src[path]; }
-    else { p[k+'o'] = String(s.o); p[k+'w'] = String(s.w); p[k+'r'] = String(s.r); own[path] = String(s.o); src[path] = s.label==='Analyst' ? 'an' : 'bbb'; }
-  } else { p[k+'r'] = String(s.r); p[k+'b'] = String(s.b); own[path] = String(s.r); src[path] = s.label==='Analyst' ? 'an' : 'bbb'; }
+    else { p[k+'o'] = String(s.o); p[k+'w'] = String(s.w); p[k+'r'] = String(s.r); own[path] = String(s.o); src[path] = s.label==='Analyst' ? 'an' : s.label==='Scorecard' ? 'sc' : 'bbb'; }
+  } else { p[k+'r'] = String(s.r); p[k+'b'] = String(s.b); own[path] = String(s.r); src[path] = s.label==='Analyst' ? 'an' : s.label==='Scorecard' ? 'sc' : 'bbb'; }
   autoMilestones(g); touchGame(g); render(); toast(`${p.name}: ${s.label.toLowerCase()} figures used`);
 }
 function anApply(g){
@@ -3852,7 +4005,8 @@ function anApply(g){
     if((m = path.match(/^bowl:.*:(\d)$/))) return !!(g.bbb||{})['bowl'+m[1]];
     if((m = path.match(/^score:([qo])(\d)$/))) return !!(g.bbb||{})[(m[1]==='q'?'bat':'bowl')+m[2]];
     return false; };
-  const mine = (cur, path)=> cur===undefined || cur===null || String(cur).trim()==='' || (own[path]!==undefined ? String(cur)===own[path] : pasted(path));
+  const mine = (cur, path)=> src[path]!=='sc' && mine0(cur, path);
+  const mine0 = (cur, path)=> cur===undefined || cur===null || String(cur).trim()==='' || (own[path]!==undefined ? String(cur)===own[path] : pasted(path));
   const put = (obj, key, val, path)=>{ if(val===undefined || val===null || val==='') return false; if(!mine(obj[key], path)) return false; obj[key] = String(val); own[path] = String(val); src[path] = 'an'; return true; };
   const find = (list, name)=>g[list].find(p=>nmSame(p.name, name));
   const oppName = t=>{ const m = (t||'').match(/^(Vic|NSW|Tas|SA|WA|ACT|NZ|Qld)/i); const map = {vic:'Victoria', nsw:'New South Wales', tas:'Tasmania', sa:'South Australia', wa:'Western Australia', act:'ACT Comets', nz:'New Zealand', qld:'Queensland'}; return m ? map[m[1].toLowerCase()] : (t||'').replace(/ 2nd XI.*$/,''); };
