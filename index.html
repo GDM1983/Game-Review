@@ -2838,6 +2838,19 @@ function bbbQldBatting(g, r){
   const score = list=>list.reduce((m,p)=>m + (isQ(p.name)?1:0) - (isO(p.name)?1:0), 0);
   return score(r.batters) >= score(r.bowlers) && (score(r.batters) > 0 || !an);
 }
+/* A paste with no scorecard header: match it to the official innings scores (analyst report) on wickets and runs,
+   else it is the next innings for that side when the 1st is already in with a different total. */
+function bbbGuessInnings(g, r, side){
+  const sc = g.scores||{}, src = g.anSrc||{};
+  let best = null;
+  ['q1','o1','q2','o2'].forEach(k=>{ if(src['score:'+k]!=='an') return; const m = String(sc[k]||'').match(/^(\d+)\/(\d+)/); if(!m) return;
+    const w = +m[1], runs = +m[2], d = Math.abs(runs - r.total) + (w===r.wkts ? 0 : 20);
+    if(d <= 8 && (!best || d < best.d)) best = {d, side: k[0]==='q' ? 'bat' : 'bowl', inn: +k[1]}; });
+  if(best) return best;
+  const one = (g.bbb||{})[side+'1'];
+  if(one && !(g.bbb||{})[side+'2']){ const t = bbbBalls(one).reduce((m,x)=>m+x.bat+x.nb+x.wd+x.b+x.lb, 0); if(t!==r.total) return {side, inn:2}; }
+  return null;
+}
 function bbbRead(text){
   bbb.text = text; bbb.r = null;
   const r = parseBallByBall(text);
@@ -2848,6 +2861,7 @@ function bbbRead(text){
   const code = (r.team||'').slice(0,3).toUpperCase(), heads = bbbHeaderInnings(text).filter(h=>h.code===code);
   const best = heads.slice().sort((a,b)=>Math.abs(a.runs-r.total)-Math.abs(b.runs-r.total))[0];
   bbb.r = r; bbb.side = qldBat ? 'bat' : 'bowl'; bbb.inn = isLtd(g) ? 1 : (best ? best.inn : 1); bbb.pageTotal = best ? best.runs : null;
+  if(!best && !isLtd(g)){ const pick = bbbGuessInnings(g, r, bbb.side); if(pick){ bbb.side = pick.side; bbb.inn = pick.inn; } }
   bbb.meta = bbbHeaderMeta(text);
   const allHeads = bbbHeaderInnings(text); bbb.firstSame = allHeads.length && code ? allHeads[0].code===code : null;
   const list = bbb.side==='bat' ? r.batters : r.bowlers;
@@ -2937,6 +2951,10 @@ function bbbApply(){
     filled++;
   });
   bbbStore(g, bat?'bat':'bowl', n, r, bbb.rows);
+  { const me = (bat?'bat':'bowl')+n, mine = g.bbb[me].balls;
+    Object.keys(g.bbb).forEach(k=>{ if(k===me || g.bbb[k].balls!==mine) return; delete g.bbb[k];
+      const sk = (k.startsWith('bat')?'q':'o') + k.slice(-1), own = g.anOwn||{}, osrc = g.anSrc||{};
+      if(osrc['score:'+sk]==='bbb'){ g.scores[sk] = ''; delete own['score:'+sk]; delete osrc['score:'+sk]; } }); }
   anFillHidden(g);
   if(!bat && !isLtd(g)){
     const ph = {nb1:[1,20], midph:[21,80], nb2:[81,9999]};
@@ -3671,9 +3689,32 @@ function anSoloInnings(g, b, opp){
   const pick = cands.find(i=>i.inn===b.solo) || cands[0] || opp.find(i=>i.inn===b.solo) || opp[0];
   return pick.inn;
 }
+/* A paste filed under the wrong innings (no header to go on): when the analyst's innings scores show which
+   innings it really is, and that innings has no paste yet, move it there. Figures the paste wrote to the old
+   innings are cleared so the analyst's go in. */
+function bbbRefile(g, an){
+  if(!g.bbb || !an || !an.innings) return;
+  const off = {};
+  an.innings.forEach(i=>{ const [r,w] = String(i.score).split('/'); off[(i.qld?'bat':'bowl')+i.n] = {r:+r, w:+(w||10)}; });
+  Object.keys(g.bbb).slice().forEach(k=>{
+    const bs = bbbBalls(g.bbb[k]); if(!bs.length) return;
+    const t = {r: bs.reduce((m,x)=>m+x.bat+x.nb+x.wd+x.b+x.lb, 0), w: bs.filter(x=>x.out).length};
+    const near = o=>o && o.w===t.w && Math.abs(o.r-t.r)<=8;
+    if(near(off[k])) return;
+    const to = Object.keys(off).find(j=>j!==k && !g.bbb[j] && near(off[j]) && j.slice(0,-1)===k.slice(0,-1)) || Object.keys(off).find(j=>j!==k && !g.bbb[j] && near(off[j]));
+    if(!to) return;
+    g.bbb[to] = g.bbb[k]; delete g.bbb[k];
+    const own = g.anOwn = g.anOwn||{}, src = g.anSrc = g.anSrc||{}, n = k.slice(-1), side = k.slice(0,-1);
+    const sk = (side==='bat'?'q':'o')+n; if(src['score:'+sk]==='bbb'){ g.scores[sk] = ''; delete own['score:'+sk]; delete src['score:'+sk]; }
+    (side==='bat' ? g.batters : g.bowlers).forEach(p=>{ const path = `${side}:${p.id}:${n}`; if(src[path]!=='bbb') return;
+      (side==='bat' ? ['r','b','f','s','d'] : ['o','m','r','w','f','s','d']).forEach(f=>{ p['i'+n+f] = ''; }); if(side==='bat') p['i'+n+'no'] = false;
+      delete own[path]; delete src[path]; });
+  });
+}
 function anApply(g){
   const an = g.analyst, s = S(), done = [];
   const own = g.anOwn = g.anOwn || {}, src = g.anSrc = g.anSrc || {};
+  bbbRefile(g, an);
   // a figure filled from a ball-by-ball paste before this was tracked: that innings was pasted, so it is replaceable too
   const pasted = path=>{ let m;
     if((m = path.match(/^bat:.*:(\d)$/))) return !!(g.bbb||{})['bat'+m[1]];
